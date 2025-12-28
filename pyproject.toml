@@ -1,0 +1,98 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quicken_parser"]
+
+[project]
+name = "quicken-data-processing"
+version = "0.1.0"
+description = "Parse Quicken expense reports and generate financial analysis charts"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "Karl T. Braun", email = "karltbraun@example.com" }
+]
+license = { text = "MIT" }
+keywords = [
+    "quicken",
+    "financial-analysis",
+    "expense-reports",
+    "data-visualization",
+    "pandas",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Office/Business :: Financial",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "pandas>=2.0.0",           # Data parsing and transformation
+    "matplotlib>=3.8.0",       # Chart visualization
+    "seaborn>=0.13.0",         # Statistical data visualization
+    "pydantic>=2.0.0",         # Data validation and settings management
+    "python-dotenv>=1.0.0",    # Load environment variables from .env
+    "pdfplumber>=0.10.0",      # PDF parsing and text extraction
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",           # Unit testing framework
+    "pytest-cov>=4.0.0",       # Coverage reporting for pytest
+    "black>=23.0.0",           # Code formatting (opinionated)
+    "ruff>=0.1.0",             # Fast Python linter
+    "mypy>=1.0.0",             # Static type checking
+    "isort>=5.12.0",           # Import sorting
+]
+
+[project.urls]
+Repository = "https://github.com/karltbraun/Quicken-Data-Processing"
+Issues = "https://github.com/karltbraun/Quicken-Data-Processing/issues"
+Documentation = "https://github.com/karltbraun/Quicken-Data-Processing/blob/main/README.md"
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "W"]
+ignore = ["E501"]  # Line too long (handled by black)
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=html --cov-report=term-missing"
+python_files = ["test_*.py", "*_test.py"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip_gitignore = true
