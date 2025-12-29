@@ -20,22 +20,23 @@ plt.rcParams["figure.figsize"] = (12, 6)
 def plot_monthly_trends(
     df: pd.DataFrame,
     categories: Optional[List[str]] = None,
-    window: int = 3,
+    window: Optional[int] = 3,
     title: Optional[str] = None,
     figsize: Tuple[int, int] = (14, 8),
     save_path: Optional[str] = None,
 ) -> plt.Figure:
     """
-    Plot monthly expense trends with moving averages.
+    Plot monthly expense trends with moving or expanding averages.
 
     Creates line charts showing:
     - Category totals per month (solid lines)
-    - Moving averages (dotted lines)
+    - Moving averages or expanding cumulative averages (dashed lines)
 
     Args:
         df: DataFrame with parsed expense data
         categories: List of category names to plot. If None, plots all categories.
-        window: Window size for moving average (default: 3 months)
+        window: Window size for moving average. If None, uses expanding cumulative average.
+                Default: 3 months
         title: Chart title. If None, auto-generates title.
         figsize: Figure size as (width, height)
         save_path: Optional path to save the chart
@@ -65,13 +66,34 @@ def plot_monthly_trends(
     # Create figure
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Color palette
-    colors = sns.color_palette("husl", len(plot_df))
+    # Color palette - use specific colors from aaprompt.md
+    base_colors = [
+        "#1f77b4",  # Blue
+        "#2ca02c",  # Green
+        "#d62728",  # Red
+        "#9467bd",  # Purple
+        "#8c564b",  # Brown
+        "#ff7f0e",  # Orange
+        "#7f7f7f",  # Gray
+        "#e377c2",  # Pink
+        "#bcbd22",  # Olive
+        "#17becf",  # Teal
+    ]
+
+    # Extend colors if needed
+    colors = (base_colors * ((len(plot_df) // len(base_colors)) + 1))[
+        : len(plot_df)
+    ]
 
     # Plot each category
     for idx, (_, row) in enumerate(plot_df.iterrows()):
         category_name = row["category"]
         values = row[date_cols].values
+
+        # Use black for Group Total, otherwise use the color from palette
+        color = (
+            "#000000" if category_name == "Group Total" else colors[idx]
+        )
 
         # Convert to positive values for plotting (expenses are negative)
         values = np.abs(values)
@@ -83,12 +105,27 @@ def plot_monthly_trends(
             marker="o",
             linewidth=2,
             label=f"{category_name}",
-            color=colors[idx],
+            color=color,
             markersize=6,
         )
 
-        # Calculate and plot moving average (dotted line)
-        if len(values) >= window:
+        # Calculate and plot average (dashed line)
+        if window is None:
+            # Expanding cumulative average
+            expanding_avg = (
+                pd.Series(values).expanding(min_periods=1).mean()
+            )
+            ax.plot(
+                date_cols,
+                expanding_avg,
+                linestyle="--",
+                linewidth=1.5,
+                label=f"{category_name} (Expanding Avg)",
+                color=color,
+                alpha=0.7,
+            )
+        elif len(values) >= window:
+            # Rolling window average
             moving_avg = (
                 pd.Series(values)
                 .rolling(window=window, min_periods=1)
@@ -100,7 +137,7 @@ def plot_monthly_trends(
                 linestyle="--",
                 linewidth=1.5,
                 label=f"{category_name} (MA-{window})",
-                color=colors[idx],
+                color=color,
                 alpha=0.7,
             )
 
