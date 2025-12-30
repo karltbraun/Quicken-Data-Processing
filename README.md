@@ -2,6 +2,11 @@
 
 Parse Quicken expense reports from CSV exports and generate financial analysis charts and tables.
 
+> **Note:**
+> This project was mostly vibe-coded.  The current version is functional but may contain rough edges.  Current objective is to 
+> review and refine but the current code base will give you reasonable functionality for parsing Quicken CSV exports and generating reports.
+
+
 ## Overview
 
 This project automates the extraction of expense data from Quicken CSV exports and generates visual analysis charts and tabular reports organized by category and month using a flexible YAML configuration system.
@@ -13,7 +18,7 @@ This project automates the extraction of expense data from Quicken CSV exports a
   - Supports both "Income and Expense" and "Cash Flow" report formats
   - Handles section detection for Income/Expenses or Inflows/Outflows
 - 📊 **Generate monthly trend charts**
-  - Customizable color palettes (15 colors)
+  - Customizable color palettes for line graphs (15 colors)
   - Expanding cumulative averages with dashed lines
   - Configurable chart dimensions and styling
 - 📈 **Category-based expense analysis**
@@ -25,12 +30,13 @@ This project automates the extraction of expense data from Quicken CSV exports a
 - 🔍 **Configurable category filtering**
   - Define report groups in YAML configuration
   - Error handling modes (fill_zero, skip, error)
+    - if a requested category is missing from the data due to no values in any month, the category is reported on as all zeros in time range.
 - 🚫 **Automatic filtering** of inflows and summary rows
 - 🖥️ **CLI Tool**: `quicken-report` command for easy report generation
 
 ## Project Status
 
-**Current Version:** 0.2.0
+**Current Version:** 1.0
 
 Core functionality complete: CSV parsing, configuration system, chart generation, and table generation are all implemented and tested.
 
@@ -61,9 +67,43 @@ source .venv/bin/activate  # On macOS/Linux
 uv pip install -e ".[dev]"
 ```
 
+## Getting Started
+
+### Exporting Data from Quicken
+
+This tool processes expense reports exported from Quicken. These instructions are based on **Quicken for Mac** (Quicken Classic, Business and Personal).
+
+**Steps to export your data:**
+
+1. **Generate a Category Summary Report** in Quicken:
+   - Select the accounts and categories you want to analyze
+   - Choose report type: "Income and Expense" or "Cash Flow"
+   - Set interval to: **Month**
+   - Set columns to: **Time**
+   - Verify all target categories appear in the report
+
+2. **Export the report to CSV**:
+   - Click the **Export** button in the report window
+   - Save the file to the `data/` folder in this repository
+   - Example filename: `data/Expenses-20250101-20251231.csv`
+
+### Quick Example
+
+Once you have your CSV export:
+
+```bash
+quicken-report --config reports_config.yaml --input data/Expenses-20250101-20251231.csv
+```
+
+This will generate charts and tables in the `./reports/` directory.
+
 ## Usage
 
-### Command-Line Interface (Recommended)
+### Exporting from Quicken
+
+Before using this tool, you need to export your expense data from Quicken as a CSV file. See the [Getting Started](#getting-started) section above for detailed export instructions.
+
+### Command-Line Interface
 
 Generate all reports (charts and tables) using the configuration file:
 
@@ -72,6 +112,7 @@ quicken-report --config reports_config.yaml --input data/Expenses-2025.csv
 ```
 
 This will:
+
 - Parse the Quicken CSV export
 - Create report groups defined in `reports_config.yaml`
 - Generate line charts in `./reports/charts/`
@@ -159,7 +200,8 @@ Both parsers produce DataFrames with the following structure:
 | `report_end_date`   | Report end date                                |
 
 Example output:
-```
+
+```text
 category                  1/1/25 - 1/31/25  2/1/25 - 2/28/25  ...
 Groceries                 -1293.53          -1282.94          ...
 Dental Ins                -135.66           -135.66           ...
@@ -167,7 +209,7 @@ Dental Ins                -135.66           -135.66           ...
 
 ## Project Structure
 
-```
+```text
 Quicken Data Processing/
 ├── src/
 │   └── quicken_parser/

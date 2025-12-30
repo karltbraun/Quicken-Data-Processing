@@ -29,7 +29,7 @@ Configuration Structure:
       partial_groups: "include"        # or "skip", "error"
 
 Author: Karl T. Braun
-Version: 0.2.0
+Version: 1.0
 """
 
 from dataclasses import dataclass, field

@@ -22,7 +22,7 @@ The parser:
 - Converts currency strings to float values
 
 Author: Karl T. Braun
-Version: 0.2.0
+Version: 1.0
 """
 
 import csv

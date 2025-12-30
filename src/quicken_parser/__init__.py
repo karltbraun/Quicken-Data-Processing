@@ -29,7 +29,7 @@ Quick Start:
     reports = create_report_groups(df, config)
 
 Author: Karl T. Braun
-Version: 0.2.0
+Version: 1.0
 """
 
 from .charts import (
@@ -40,7 +40,7 @@ from .charts import (
 )
 from .csv_parser import QuickenCSVParser, parse_quicken_csv
 
-__version__ = "0.2.0"
+__version__ = "1.0"
 __author__ = "Karl T. Braun"
 
 __all__ = [

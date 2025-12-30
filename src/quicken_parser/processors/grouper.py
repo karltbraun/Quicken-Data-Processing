@@ -20,7 +20,7 @@ The module supports two report types:
 - Individual reports: Single category report
 
 Author: Karl T. Braun
-Version: 0.2.0
+Version: 1.0
 """
 
 from typing import Dict, List

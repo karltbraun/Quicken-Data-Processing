@@ -21,7 +21,7 @@ Charts use a consistent color palette and support:
 - Special formatting for "Group Total" rows
 
 Author: Karl T. Braun
-Version: 0.2.0
+Version: 1.0
 """
 
 from typing import List, Optional, Tuple

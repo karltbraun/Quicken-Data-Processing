@@ -15,7 +15,7 @@ Command-line usage:
     quicken-report --config reports_config.yaml --input data/expenses.csv
 
 Author: Karl T. Braun
-Version: 0.2.0
+Version: 1.0
 """
 
 import argparse

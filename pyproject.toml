@@ -7,7 +7,7 @@ packages = ["src/quicken_parser"]
 
 [project]
 name = "quicken-data-processing"
-version = "0.2.0"
+version = "1.0"
 description = "Parse Quicken expense reports and generate financial analysis charts and tables"
 readme = "README.md"
 requires-python = ">=3.12"
