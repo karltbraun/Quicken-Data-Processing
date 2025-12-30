@@ -3,6 +3,24 @@ Category grouping and aggregation module.
 
 This module processes parsed expense data according to configuration,
 creating report-ready DataFrames with proper groupings and totals.
+
+Workflow:
+1. Takes parsed expense data (from csv_parser)
+2. Extracts categories specified in configuration
+3. Handles missing categories per error_handling settings:
+   - fill_zero: Create row with zeros
+   - skip: Omit category from report
+   - error: Raise ValueError
+4. Aggregates categories into report groups
+5. Adds group total rows where configured
+6. Returns dictionary of report DataFrames ready for charts/tables
+
+The module supports two report types:
+- Grouped reports: Multiple categories with optional total
+- Individual reports: Single category report
+
+Author: Karl T. Braun
+Version: 0.2.0
 """
 
 from typing import Dict, List
@@ -92,14 +110,28 @@ def create_grouped_report(
     """
     Create a DataFrame for a grouped report.
 
+    Extracts multiple categories from the parsed data and combines them
+    into a single DataFrame. Handles missing categories according to
+    error_handling configuration. Optionally adds a "Group Total" row
+    summing all categories.
+
     Args:
-        df: Parsed expense DataFrame
-        group: Report group configuration
-        month_columns: List of month column names
-        error_handling: Error handling configuration
+        df: Parsed expense DataFrame from csv_parser with columns:
+            - category: Category names
+            - indent_level: Hierarchy depth
+            - {date_range}: Monthly expense columns
+        group: Report group configuration specifying:
+            - categories: List of category names to include
+            - include_group_total: Whether to add total row
+        month_columns: List of date range column names (e.g., "1/1/25 - 1/31/25")
+        error_handling: Configuration for missing category behavior
 
     Returns:
-        DataFrame ready for charting/reporting
+        DataFrame with rows for each category plus optional Group Total.
+        Returns None if skip mode and no categories found.
+
+    Raises:
+        ValueError: If error mode enabled and no categories found
     """
     report_data = []
 
@@ -148,14 +180,24 @@ def create_individual_report(
     """
     Create a DataFrame for an individual category report.
 
+    Extracts a single category from the parsed data and returns it as
+    a one-row DataFrame. Useful for tracking specific high-importance
+    categories separately.
+
     Args:
-        df: Parsed expense DataFrame
-        report: Individual report configuration
-        month_columns: List of month column names
-        error_handling: Error handling configuration
+        df: Parsed expense DataFrame from csv_parser
+        report: Individual report configuration specifying:
+            - category: Single category name to extract
+            - name/output_name: Report identifiers
+        month_columns: List of date range column names
+        error_handling: Configuration for missing category behavior
 
     Returns:
-        DataFrame with single category ready for charting/reporting
+        DataFrame with single category row.
+        Returns None if skip mode and category not found.
+
+    Raises:
+        ValueError: If error mode enabled and category not found
     """
     series = get_or_fill_category(
         df, report.category, month_columns, error_handling

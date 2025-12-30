@@ -1,8 +1,21 @@
 """
 Main orchestration module for Quicken expense reporting.
 
-This module provides the entry point for generating expense reports,
-including charts and tables, based on configuration.
+This module provides the entry point for generating expense reports from
+Quicken CSV exports. It orchestrates the entire workflow:
+1. Load configuration from YAML
+2. Parse Quicken CSV data
+3. Create report groups based on configuration
+4. Generate visual charts and CSV tables
+
+The module supports both raw Quicken exports and pre-parsed CSV files,
+with options for generating charts only, tables only, or both.
+
+Command-line usage:
+    quicken-report --config reports_config.yaml --input data/expenses.csv
+
+Author: Karl T. Braun
+Version: 0.2.0
 """
 
 import argparse
@@ -91,14 +104,26 @@ def generate_tables(
     """
     Generate CSV tables for all or specific reports.
 
+    Creates timestamped CSV files containing expense data organized by
+    category and month. Files are named with pattern:
+    {output_name}_{YYYYMMDD_HHMMSS}.csv
+
     Args:
-        reports: Dictionary of report DataFrames
-        config: Report configuration
-        output_dir: Directory to save tables
-        specific_reports: Optional list of report names to generate
+        reports: Dictionary mapping output names to report DataFrames.
+                Each DataFrame contains category rows with monthly expense columns.
+        config: Report configuration object (used for future extensions)
+        output_dir: Directory path where CSV files will be saved.
+                   Created if it doesn't exist.
+        specific_reports: Optional list of output names to generate.
+                         If None, generates all reports.
 
     Returns:
-        Number of tables generated
+        Number of tables successfully generated
+
+    Example:
+        >>> reports = {'groceries': groceries_df, 'utilities': utilities_df}
+        >>> count = generate_tables(reports, config, './reports')
+        >>> print(f"Generated {count} tables")
     """
     os.makedirs(output_dir, exist_ok=True)
     table_count = 0
@@ -135,16 +160,37 @@ def main(
     """
     Main orchestration function for report generation.
 
+    Coordinates the complete report generation workflow from data loading
+    through output generation. Supports both raw Quicken exports and
+    pre-parsed CSV files.
+
+    The function performs these steps:
+    1. Loads and validates configuration from YAML file
+    2. Parses input CSV (auto-detects format)
+    3. Creates report groups by aggregating categories
+    4. Generates charts (PNG files) and/or tables (CSV files)
+    5. Displays summary of generated outputs
+
     Args:
-        config_path: Path to YAML configuration file
-        input_csv: Path to parsed CSV expense data
-        charts_only: Generate only charts
-        tables_only: Generate only tables
-        specific_reports: Optional list of specific reports to generate
-        verbose: Enable verbose output
+        config_path: Path to YAML configuration file defining report groups,
+                    categories, and display settings
+        input_csv: Path to CSV expense data. Can be:
+                  - Raw Quicken export (auto-parsed)
+                  - Pre-parsed CSV (with 'parsed_expenses' or 'Expense_Report' in name)
+        charts_only: If True, generates only charts (skips table generation)
+        tables_only: If True, generates only tables (skips chart generation)
+        specific_reports: Optional list of report output names to generate.
+                         If None, generates all configured reports.
+        verbose: If True, prints detailed progress information
 
     Returns:
-        Exit code (0 for success, non-zero for error)
+        Exit code:
+        - 0: Success
+        - 1: Error (file not found, invalid config, parsing failure, etc.)
+
+    Raises:
+        FileNotFoundError: If config or input file doesn't exist
+        ValueError: If configuration is invalid or data can't be parsed
     """
     try:
         print("=" * 70)
@@ -274,7 +320,18 @@ def main(
 
 
 def cli():
-    """Command-line interface entry point."""
+    """
+    Command-line interface entry point.
+
+    Parses command-line arguments and invokes the main report generation
+    function. This is the entry point configured in pyproject.toml as the
+    'quicken-report' console script.
+
+    Exit codes:
+        0: Success
+        1: Error during execution
+        2: Invalid command-line arguments
+    """
     parser = argparse.ArgumentParser(
         description="Generate expense reports from Quicken CSV data",
         formatter_class=argparse.RawDescriptionHelpFormatter,

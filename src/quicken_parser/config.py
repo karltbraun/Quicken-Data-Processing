@@ -2,7 +2,34 @@
 Configuration management for Quicken expense reporting.
 
 This module provides configuration loading, validation, and access
-for the expense reporting system.
+for the expense reporting system. Configuration is defined in YAML format
+with sections for report groups, individual reports, display settings,
+and error handling.
+
+Configuration Structure:
+    report_groups:      # Groups of related categories
+      - name: "Group Name"
+        output_name: "file_name"
+        categories: ["Cat1", "Cat2"]
+        include_group_total: true
+
+    individual_reports: # Single-category reports
+      - name: "Report Name"
+        output_name: "file_name"
+        category: "Category Name"
+
+    display_settings:   # Chart colors and defaults
+      colors:
+        palette: ["#color1", "#color2"]
+      chart_defaults:
+        figsize: [14, 8]
+
+    error_handling:     # Missing data behavior
+      missing_categories: "fill_zero"  # or "skip", "error"
+      partial_groups: "include"        # or "skip", "error"
+
+Author: Karl T. Braun
+Version: 0.2.0
 """
 
 from dataclasses import dataclass, field
@@ -14,7 +41,27 @@ import yaml
 
 @dataclass
 class ReportGroup:
-    """Configuration for a grouped report."""
+    """
+    Configuration for a grouped report.
+
+    Groups multiple expense categories into a single report with an
+    optional total row. Used for analyzing related expenses together
+    (e.g., all medical expenses, all vehicle expenses).
+
+    Attributes:
+        name: Display name for the report (used in chart titles)
+        output_name: Filename base for output files (no extension)
+        categories: List of Quicken category names to include
+        include_group_total: Whether to add a summary "Group Total" row
+
+    Example:
+        ReportGroup(
+            name="Cell Phones (Family)",
+            output_name="cell_phones_family",
+            categories=["Cell Phone Monthly - FAM", "Other Cell Phone Exp - FAM"],
+            include_group_total=True
+        )
+    """
 
     name: str
     output_name: str
@@ -33,7 +80,24 @@ class ReportGroup:
 
 @dataclass
 class IndividualReport:
-    """Configuration for an individual category report."""
+    """
+    Configuration for an individual category report.
+
+    Creates a report for a single expense category. Useful for tracking
+    specific high-importance or high-variability expenses.
+
+    Attributes:
+        name: Display name for the report (used in chart titles)
+        output_name: Filename base for output files (no extension)
+        category: Quicken category name to report on
+
+    Example:
+        IndividualReport(
+            name="Groceries",
+            output_name="groceries",
+            category="Groceries"
+        )
+    """"
 
     name: str
     output_name: str
@@ -51,7 +115,16 @@ class IndividualReport:
 
 @dataclass
 class ColorSettings:
-    """Color palette configuration."""
+    """
+    Color palette configuration for charts.
+
+    Defines colors used for category lines in charts. Colors are applied
+    in order to categories. If more categories than colors, palette cycles.
+
+    Attributes:
+        palette: List of hex color codes (e.g., ["#1f77b4", "#2ca02c"])
+        group_total_color: Color for "Group Total" rows (default: black)
+    """
 
     palette: List[str]
     group_total_color: str = "#000000"
@@ -68,7 +141,20 @@ class ColorSettings:
 
 @dataclass
 class ChartDefaults:
-    """Default chart settings."""
+    """
+    Default chart settings and styling.
+
+    Controls the appearance and behavior of generated charts including
+    size, line styles, and averaging method.
+
+    Attributes:
+        figsize: Chart dimensions as [width, height] in inches
+        show_markers: Whether to show data point markers on lines
+        line_width: Width of category trend lines
+        average_line_style: Style for average lines ("dashed", "dotted", "solid")
+        average_type: "expanding" (cumulative) or "rolling" (moving window)
+        rolling_window: Window size for rolling average (required if average_type="rolling")
+    """
 
     figsize: List[int] = field(default_factory=lambda: [14, 8])
     show_markers: bool = True
@@ -93,7 +179,16 @@ class ChartDefaults:
 
 @dataclass
 class DisplaySettings:
-    """Display configuration for charts."""
+    """
+    Display configuration for charts.
+
+    Combines color palette and chart default settings into a single
+    configuration object.
+
+    Attributes:
+        colors: Color palette configuration
+        chart_defaults: Default chart sizing and styling
+    """
 
     colors: ColorSettings
     chart_defaults: ChartDefaults
@@ -101,7 +196,17 @@ class DisplaySettings:
 
 @dataclass
 class OutputSettings:
-    """Output configuration."""
+    """
+    Output configuration for generated files.
+
+    Specifies where and how to save generated reports.
+
+    Attributes:
+        base_dir: Base directory for all outputs (default: "./reports")
+        chart_format: Image format for charts ("png", "jpg", "svg", "pdf")
+        table_format: Format for data tables ("csv", "xlsx", "html")
+        create_summary: Whether to generate summary report (future feature)
+    """
 
     base_dir: str = "./reports"
     chart_format: str = "png"
@@ -120,7 +225,21 @@ class OutputSettings:
 
 @dataclass
 class ErrorHandling:
-    """Error handling configuration."""
+    """
+    Error handling configuration.
+
+    Controls how the system handles missing or incomplete data.
+
+    Attributes:
+        missing_categories: How to handle categories in config but not in data:
+            - "fill_zero": Create row with zero values (default)
+            - "skip": Omit category from report
+            - "error": Raise ValueError
+        partial_groups: How to handle groups where some categories are missing:
+            - "include": Include group with available categories (default)
+            - "skip": Omit entire group
+            - "error": Raise ValueError
+    """
 
     missing_categories: str = "fill_zero"
     partial_groups: str = "include"
@@ -139,7 +258,20 @@ class ReportConfig:
     """
     Main configuration class for expense reporting.
 
-    Loads and validates configuration from YAML file.
+    Loads and validates configuration from YAML file, providing typed
+    access to all settings. Performs validation on load to catch
+    configuration errors early.
+
+    The class parses YAML into typed dataclass objects for:
+    - Report groups and individual reports
+    - Display settings (colors, chart defaults)
+    - Output settings (directories, formats)
+    - Error handling behavior
+
+    Example:
+        >>> config = ReportConfig('reports_config.yaml')
+        >>> groups = config.get_report_groups()
+        >>> colors = config.get_display_settings().colors.palette
     """
 
     def __init__(self, config_path: str):

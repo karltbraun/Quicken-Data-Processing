@@ -2,7 +2,26 @@
 Visualization functions for Quicken expense data.
 
 This module provides charting capabilities for analyzing expense data
-parsed from Quicken CSV or PDF reports.
+parsed from Quicken CSV reports. Charts visualize spending patterns
+over time with trend analysis.
+
+Supported Visualizations:
+- Monthly trend lines: Track category spending over time
+- Moving averages: Identify spending trends (rolling window)
+- Expanding averages: Show cumulative average from start
+- Category breakdown: Pie/bar charts for composition
+- Hierarchical views: Show parent-child category relationships
+- Spending summaries: Multi-category comparisons
+
+Charts use a consistent color palette and support:
+- Custom titles and sizing
+- Automatic legend placement
+- Grid lines for readability
+- PNG export with configurable DPI
+- Special formatting for "Group Total" rows
+
+Author: Karl T. Braun
+Version: 0.2.0
 """
 
 from typing import List, Optional, Tuple

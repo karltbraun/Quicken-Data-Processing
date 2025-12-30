@@ -4,8 +4,25 @@ CSV Parser Module for Quicken Expense Reports
 This module provides functions to extract and parse data from Quicken expense
 CSV exports, converting them into structured pandas DataFrames for analysis.
 
+Quicken exports have a non-standard CSV format:
+- Title and metadata in first few lines
+- Header row with "Category" and date range columns
+- Section markers ("Income" and "Expenses") in column 0
+- Hierarchical categories with leading dashes (" - Category")
+- Parent categories with empty data columns
+- Leaf categories with actual expense values
+- "Other" section marks end of usable data
+
+The parser:
+- Identifies and skips the Income section
+- Extracts only the Expenses section
+- Stops at the "Other" section
+- Normalizes category names (strips leading dashes)
+- Preserves indentation level for hierarchy visualization
+- Converts currency strings to float values
+
 Author: Karl T. Braun
-Version: 0.1.0 (Alpha)
+Version: 0.2.0
 """
 
 import csv
@@ -19,12 +36,25 @@ class QuickenCSVParser:
     """
     Parse Quicken expense CSV exports and extract expense data.
 
-    Quicken CSV exports have a non-standard format with title lines,
-    separators, and hierarchical categories indicated by dashes.
+    Quicken CSV exports have a non-standard format with:
+    - Title lines and metadata headers
+    - Section separators (Income, Expenses, Other)
+    - Hierarchical categories indicated by leading " - " sequences
+    - Parent categories with no data (empty columns)
+    - Leaf categories with actual expense values
+
+    The parser extracts only expense categories (skips income and other sections),
+    normalizes category names, and preserves hierarchy information for
+    visualization purposes.
 
     Attributes:
-        csv_path (str): Path to the Quicken CSV export
+        csv_path (str): Path to the Quicken CSV export file
         verbose (bool): Enable detailed logging during parsing
+
+    Example:
+        >>> parser = QuickenCSVParser('data/expenses.csv', verbose=True)
+        >>> df = parser.parse()
+        >>> print(df.head())
     """
 
     def __init__(self, csv_path: str, verbose: bool = False):
@@ -56,11 +86,28 @@ class QuickenCSVParser:
         """
         Parse the entire CSV and return a structured DataFrame.
 
+        Performs complete parsing workflow:
+        1. Reads and validates CSV file
+        2. Extracts metadata (date range)
+        3. Locates header row and date columns
+        4. Parses data rows (expenses only)
+        5. Calculates totals and averages
+        6. Stores metadata as DataFrame attributes
+
         Returns:
-            pd.DataFrame: Parsed expense data with columns for each date period
+            pd.DataFrame: Parsed expense data with columns:
+                - category: Normalized category name
+                - indent_level: Hierarchy depth (0=top level)
+                - {date_range}: One column per month (e.g., "1/1/25 - 1/31/25")
+                - total: Sum of all months
+                - monthly_average: Average across all months
+
+        DataFrame attributes (metadata):
+            - report_start_date: Report period start
+            - report_end_date: Report period end
 
         Raises:
-            Exception: If parsing fails
+            Exception: If parsing fails (invalid format, missing sections, etc.)
         """
         if self.verbose:
             print(f"Parsing CSV: {self.csv_path}")

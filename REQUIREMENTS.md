@@ -1,8 +1,10 @@
-# Quicken Expense Reporting - Requirements Document
+# Quicken Expense Reporting - Requirements and Architecture
 
 ## Overview
 
-A production-quality expense reporting system that parses Quicken CSV exports and generates configurable charts and tabular reports.
+A configuration-driven expense reporting system that parses Quicken CSV exports and generates customizable charts and tabular reports. All core features are implemented and tested.
+
+**Status**: Version 0.2.0 - Production architecture complete
 
 ## Architecture
 
@@ -10,43 +12,39 @@ A production-quality expense reporting system that parses Quicken CSV exports an
 
 ``` text
 quicken_parser/
-├── __init__.py
-├── config.py              # Configuration management
-├── parsers/
-│   ├── __init__.py
-│   └── csv_parser.py      # Raw CSV parsing
+├── __init__.py            # Package exports
+├── config.py              # Configuration management (YAML)
+├── csv_parser.py          # Raw CSV parsing with section detection
 ├── processors/
 │   ├── __init__.py
 │   └── grouper.py         # Category grouping and aggregation
-├── reporting/
-│   ├── __init__.py
-│   ├── charts.py          # Visualization generation
-│   └── tables.py          # Tabular/text reports
-└── main.py                # Orchestration and CLI
+├── charts.py              # Chart generation with matplotlib
+└── main.py                # CLI orchestration (quicken-report)
 ```
 
 ### Data Flow
 
 ``` text
-1. Raw Quicken CSV
+1. Raw Quicken CSV (Income/Expense or Cash Flow format)
    ↓
 2. csv_parser.py → DataFrame (all categories, monthly values)
    ↓
-3. grouper.py (uses config) → Grouped DataFrame (with totals, ready for reporting)
+3. grouper.py (uses config) → Grouped DataFrames (with Group Total rows)
    ↓
-4. charts.py / tables.py → Generated reports
+4. charts.py → PNG line charts with expanding averages
+   tables.py → Timestamped CSV files (YYYYMMDD_HHMMSS.csv)
 ```
 
 ## Configuration Schema
 
 ### Structure
 
-Configuration defines:
+Configuration (YAML) defines:
 
 - **Report Groups**: Logical groupings of expense categories
 - **Individual Reports**: Single-category reports
-- **Display Settings**: Colors, labels, chart parameters
-- **Output Settings**: File paths, formats
+- **Display Settings**: Colors (15-color palette), labels, chart parameters
+- **Error Handling**: Modes for missing categories (fill_zero, skip, error)
 
 ### Example Config Format (YAML or Python)
 
@@ -88,16 +86,21 @@ individual_reports:
 display_settings:
   colors:
     palette:
-      - "#1f77b4"  # Blue
-      - "#2ca02c"  # Green
-      - "#d62728"  # Red
-      - "#9467bd"  # Purple
-      - "#8c564b"  # Brown
-      - "#ff7f0e"  # Orange
-      - "#7f7f7f"  # Gray
-      - "#e377c2"  # Pink
-      - "#bcbd22"  # Olive
-      - "#17becf"  # Teal
+      - "#1f77b4"  # [web:0] Blue
+      - "#ff7f0e"  # [web:1] Orange
+      - "#2ca02c"  # [web:2] Green
+      - "#d62728"  # [web:3] Red
+      - "#9467bd"  # [web:4] Purple
+      - "#8c564b"  # [web:5] Brown
+      - "#e377c2"  # [web:6] Pink
+      - "#7f7f7f"  # [web:7] Gray
+      - "#bcbd22"  # [web:8] Olive
+      - "#17becf"  # [web:9] Cyan
+      - "#aec7e8"  # [web:10] Light Blue
+      - "#ffbb78"  # [web:11] Light Orange
+      - "#98df8a"  # [web:12] Light Green
+      - "#ff9896"  # [web:13] Light Red
+      - "#c5b0d5"  # [web:14] Light Purple
     group_total_color: "#000000"  # Black
   
   chart_defaults:
@@ -123,35 +126,53 @@ error_handling:
 
 ### 1. Config Module (`config.py`)
 
+**Status**: ✅ Implemented
+
 **Responsibilities:**
 
-- Load configuration from YAML/JSON file or Python dict
-- Validate configuration schema
+- Load configuration from YAML file
+- Validate configuration schema with dataclasses
 - Provide easy access to config sections
+- Support report groups, individual reports, display settings, and error handling
 
-**Key Functions:**
+**Implementation:**
 
 ``` python
+@dataclass
+class ReportGroup:
+    output_name: str
+    title: str
+    categories: List[str]
+
+@dataclass
+class DisplaySettings:
+    colors: List[str]
+    group_total_color: str
+
+@dataclass
 class ReportConfig:
-    def __init__(self, config_path: str):
-        ...
-    def get_report_groups(self) -> List[ReportGroup]:
-        ...
-    def get_individual_reports(self) -> List[IndividualReport]:
-        ...
-    def get_display_settings(self) -> DisplaySettings:
-        ...
-    def validate(self) -> bool:
+    report_groups: List[ReportGroup]
+    individual_reports: List[IndividualReport]
+    display_settings: DisplaySettings
+    error_handling: ErrorHandling
+    
+    @classmethod
+    def from_yaml(cls, path: str) -> 'ReportConfig':
+        """Load and validate config from YAML file."""
         ...
 ```
 
-### 2. CSV Parser (`parsers/csv_parser.py`)
+### 2. CSV Parser (`csv_parser.py`)
+
+**Status**: ✅ Implemented
 
 **Responsibilities:**
 
-- Parse raw Quicken CSV export
+- Parse non-standard Quicken CSV exports
+- Handle both "Income and Expense" and "Cash Flow" report formats
+- Detect sections (Income/Expenses or Inflows/Outflows) with exact matching
+- Stop parsing at "Other" section
 - Extract categories, indent levels, monthly values
-- Calculate totals and monthly averages
 - Return clean DataFrame with ALL categories
 
 **Input:** Raw Quicken CSV file path
@@ -160,21 +181,36 @@ class ReportConfig:
 
 - `category`: str
 - `indent_level`: int
-- `{month_1}`: float
+- `{month_1}`: float (e.g., "1/1/25 - 1/31/25")
 - `{month_2}`: float
 - ...
-- `total`: float
-- `monthly_average`: float
+- `report_start_date`: datetime
+- `report_end_date`: datetime
 
-**Key Functions:**
+**Implementation:**
 
 ```python
-def parse_quicken_csv(file_path: str) -> pd.DataFrame:
-    """Parse raw Quicken CSV into standardized DataFrame."""
-    pass
+class QuickenCSVParser:
+    def parse(self, file_path: str, verbose: bool = False) -> pd.DataFrame:
+        """
+        Parse Quicken CSV export.
+        
+        Section detection:
+        - Looks for exact match: col == "Income" or col == "Expenses"
+        - Also handles: col == "Inflows" or col == "Outflows"
+        - Stops at "Other" section to avoid parsing extraneous data
+        """
+        ...
+
+def parse_quicken_csv(file_path: str, verbose: bool = False) -> pd.DataFrame:
+    """Convenience function for parsing Quicken CSV."""
+    parser = QuickenCSVParser()
+    return parser.parse(file_path, verbose)
 ```
 
 ### 3. Category Grouper (`processors/grouper.py`)
+
+**Status**: ✅ Implemented
 
 **Responsibilities:**
 
@@ -212,125 +248,157 @@ def create_report_groups(
     Returns:
         Dict mapping output_name -> DataFrame ready for charting/reporting
     """
-    pass
+    # Implemented - groups categories and adds Group Total rows
 
 def add_group_total(df: pd.DataFrame, month_columns: List[str]) -> pd.DataFrame:
-    """Add a 'Group Total' row summing all categories."""
-    pass
+    """
+    Add a 'Group Total' row summing all categories.
+    Month columns exclude metadata (report_start_date, report_end_date, page_num).
+    """
+    # Implemented
 
 def get_or_fill_category(
     df: pd.DataFrame, 
     category: str, 
-    month_columns: List[str]
+    month_columns: List[str],
+    error_mode: str = "fill_zero"
 ) -> pd.Series:
-    """Get category data or return zeros if missing."""
-    pass
+    """
+    Get category data or return zeros if missing.
+    
+    Error modes:
+    - fill_zero: Return zeros for missing categories
+    - skip: Return None (category skipped)
+    - error: Raise ValueError
+    """
+    # Implemented
 ```
 
-### 4. Charts Module (`reporting/charts.py`)
+### 4. Charts Module (`charts.py`)
+
+**Status**: ✅ Implemented
 
 **Responsibilities:**
 
 - Generate line charts from grouped DataFrames
-- Apply display settings from config
-- Use expanding cumulative averages
-- Handle colors (including black for Group Total)
+- Apply display settings from config (15-color palette)
+- Calculate and plot expanding cumulative averages (dashed lines)
+- Use black color (#000000) for Group Total
+- Save charts as PNG files
 
 **Input:**
 
 - DataFrame from grouper (single report)
 - Display settings from config
+- Output directory
 
 **Output:**
 
-- Saved chart file
+- Saved PNG chart file in `./reports/charts/`
 - Figure object for display
 
-**Key Functions:**
+**Implementation:**
 
 ```python
-def create_line_chart(
-    df: pd.DataFrame,
-    title: str,
-    display_settings: DisplaySettings,
-    save_path: str
-) -> plt.Figure:
-    """Create line chart with solid lines + expanding avg dashed lines."""
-    pass
+def generate_charts(
+    grouped_data: Dict[str, pd.DataFrame],
+    config: ReportConfig,
+    output_dir: str = "./reports/charts"
+) -> None:
+    """
+    Generate line charts for all report groups.
+    
+    Features:
+    - Solid lines for actual monthly expenses
+    - Dashed lines for expanding cumulative averages
+    - Configurable figsize, line width, markers
+    - Color cycling from 15-color palette
+    - Black for Group Total rows
+    """
+    # Implemented
 ```
 
-### 5. Tables Module (`reporting/tables.py`)
+### 5. Tables Module (`main.py::generate_tables`)
+
+**Status**: ✅ Implemented
 
 **Responsibilities:**
 
-- Generate tabular reports (CSV, Excel, HTML)
-- Create summary tables
-- Format currency values
+- Generate timestamped CSV tables for each report group
+- Export monthly expense breakdowns
+- Preserve category hierarchy and Group Total rows
 
 **Key Functions:**
 
 ```python
-def create_summary_table(
+def generate_tables(
     grouped_data: Dict[str, pd.DataFrame],
-    save_path: str,
-    format: str = "csv"
+    output_dir: str = "./reports"
 ) -> None:
-    """Create summary table with totals for all groups."""
-    pass
-
-def create_detail_table(
-    df: pd.DataFrame,
-    save_path: str,
-    format: str = "csv"
-) -> None:
-    """Create detailed table for a single group."""
-    pass
+    """
+    Generate timestamped CSV tables.
+    
+    Output format: {output_name}_{YYYYMMDD_HHMMSS}.csv
+    Example: groceries_20250121_143022.csv
+    
+    Each table contains:
+    - category column
+    - Monthly expense columns
+    - Group Total row (if applicable)
+    """
 ```
 
 ### 6. Main Module (`main.py`)
 
+**Status**: ✅ Implemented
+
 **Responsibilities:**
 
-- Orchestrate the entire pipeline
-- Provide CLI interface
+- Orchestrate the entire pipeline (parse → group → chart → table)
+- Provide CLI interface (`quicken-report` command)
 - Handle errors gracefully
 - Generate all reports
 
 **CLI Interface:**
 
 ```bash
-# Generate all reports
+# Generate all reports (default behavior)
+# Generate all reports (default behavior)
 quicken-report --config reports_config.yaml --input data/expenses.csv
-
-# Generate only charts
-quicken-report --config reports_config.yaml --input data/expenses.csv --charts-only
-
-# Generate only tables
-quicken-report --config reports_config.yaml --input data/expenses.csv --tables-only
-
-# Specific reports
-quicken-report --config reports_config.yaml --input data/expenses.csv --reports "groceries,utilities"
 ```
 
-**Key Functions:**
+**Implementation:**
 
 ```python
-def main(config_path: str, input_csv: str, options: Dict) -> None:
+def main(config_path: str, input_csv: str) -> None:
     """
     Main orchestration function:
-    1. Load config
-    2. Parse CSV
-    3. Create report groups
-    4. Generate charts
-    5. Generate tables
+    1. Load config from YAML
+    2. Parse CSV using csv_parser
+    3. Create report groups using grouper
+    4. Generate charts using charts module
+    5. Generate timestamped tables
     6. Print summary
     """
-    pass
+    # Implemented
+
+def cli() -> None:
+    """Command-line interface entry point (quicken-report command)."""
+    # Implemented with argparse
 ```
 
-## Implementation Notes
+## Implementation Status
 
-### Benefits of This Architecture
+### ✅ Completed Modules
+
+1. **config.py**: YAML configuration with dataclass validation
+2. **csv_parser.py**: Quicken CSV parsing with section detection
+3. **processors/grouper.py**: Category grouping with error handling
+4. **charts.py**: Line chart generation with expanding averages
+5. **main.py**: Full orchestration with CLI (`quicken-report`)
+6. **Table generation**: Timestamped CSV output
+
+### Architecture Benefits
 
 1. **Configuration-Driven**: Change report groups without code changes
 2. **Separation of Concerns**: Each module has clear responsibility
@@ -338,66 +406,75 @@ def main(config_path: str, input_csv: str, options: Dict) -> None:
 4. **Reusable**: Grouped data can be used for charts, tables, or future reports
 5. **Maintainable**: Easy to add new report types or change groupings
 
-### Migration Path from Current Code
-
-1. **Phase 1**: Create config structure and config.py module
-2. **Phase 2**: Extract csv_parser.py (mostly done)
-3. **Phase 3**: Create grouper.py (logic from test_charts.py)
-4. **Phase 4**: Refactor charts.py (mostly done)
-5. **Phase 5**: Create tables.py (new)
-6. **Phase 6**: Create main.py orchestration
-7. **Phase 7**: Add CLI interface
-
 ### Error Handling Strategy
 
-- **Missing categories**: Fill with $0 (configurable)
-- **Partial groups**: Include available categories (configurable)
-- **Invalid config**: Fail fast with clear error message
-- **Parse errors**: Provide detailed error with line numbers
-
+**Implemented error modes:**
+- **Missing categories**: Fill with $0 (default), skip, or error
+- **Section detection**: Exact matching prevents false positives
+- **"Other" section**: Parser stops to avoid extraneous data
+- **Invalid config**: Dataclass validation with clear messages
+    4. Generate charts
+    5. Generate tables
+    6. Print summary
 ### Testing Strategy
+
+**Implemented tests:**
 
 ``` text
 tests/
-├── test_config.py          # Config loading and validation
-├── test_csv_parser.py      # CSV parsing
-├── test_grouper.py         # Category grouping logic
-├── test_charts.py          # Chart generation
-├── test_tables.py          # Table generation
-├── test_integration.py     # End-to-end tests
+├── test_config.py          # Config loading and validation - ✅
+├── test_csv_parser.py      # CSV parsing - ✅
+├── test_grouper.py         # Category grouping logic - ✅
+├── test_charts.py          # Chart generation - ✅
+├── test_e2e.py             # End-to-end workflow - ✅
 └── fixtures/
-    ├── test_config.yaml
     └── test_expenses.csv
 ```
 
-## Current vs. Proposed
+## CSV Format Details
 
-### Current (Prototype)
+### Supported Report Types
 
-``` text
-test_csv_parser.py → reports/parsed.csv
-test_charts.py (hardcoded groups) → charts/*.png
+Quicken exports two report formats:
+
+1. **Income and Expense Report**
+   - Section headers: "Income" and "Expenses"
+   - Used for: Profit & Loss analysis
+
+2. **Cash Flow Report**
+   - Section headers: "Inflows" and "Outflows"
+   - Used for: Cash flow tracking
+
+### Section Detection
+
+Parser uses **exact matching** to identify sections:
+
+```python
+# Correct: Exact match
+if col == "Income" or col == "Expenses":
+    current_section = col
+
+# Wrong: Substring matching (causes false positives)
+# if "Income" in col:  # Matches "012 MES Retirement Income"
 ```
 
-### Proposed (Production)
+### "Other" Section Handling
 
-``` text
-config.yaml (defines groups)
-↓
-main.py orchestrates:
-  ├─ csv_parser → raw DataFrame
-  ├─ grouper (uses config) → grouped DataFrames
-  ├─ charts (uses config) → charts/*.png
-  └─ tables (uses config) → tables/*.csv
-```
+Parser stops at "Other" section:
+- Lines after "Other" are dropped and reported
+- Prevents parsing extraneous summary data
 
-## Next Steps
+## Future Enhancements
 
-1. Review and approve this architecture
-2. Create detailed config schema (YAML vs Python dict?)
-3. Start with config.py and example config file
-4. Migrate existing csv_parser.py into new structure
-5. Create grouper.py with logic from test_charts.py
-6. Iteratively implement remaining modules
+**Potential additions:**
+- [ ] Excel (XLSX) and HTML table formats
+- [ ] Rolling average support (in addition to expanding)
+- [ ] PDF export of charts
+- [ ] Web-based dashboard
+- [ ] Scheduled report generation
+- [ ] Email report delivery
 
-Would you like me to proceed with implementing any specific module first?
+## Implementation History
+
+**Version 0.1.0**: CSV parsing prototype
+**Version 0.2.0**: Configuration system, chart generation, table generation, CLI tool - Full production architecture complete
