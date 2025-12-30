@@ -36,10 +36,14 @@ dependencies = [
     "pandas>=2.0.0",           # Data parsing and transformation
     "matplotlib>=3.8.0",       # Chart visualization
     "seaborn>=0.13.0",         # Statistical data visualization
+    "pyyaml>=6.0.0",           # YAML configuration file parsing
     "pydantic>=2.0.0",         # Data validation and settings management
     "python-dotenv>=1.0.0",    # Load environment variables from .env
     "pdfplumber>=0.10.0",      # PDF parsing and text extraction
 ]
+
+[project.scripts]
+quicken-report = "quicken_parser.main:cli"
 
 [project.optional-dependencies]
 dev = [

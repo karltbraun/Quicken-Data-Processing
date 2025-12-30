@@ -184,9 +184,13 @@ class QuickenCSVParser:
         records = []
         in_inflows = False
         in_outflows = False
+        dropped_lines = []
+        stopped_at_other = False
 
         # Start parsing after separator line (header_idx + 1)
-        for line in lines[header_idx + 2 :]:
+        for line_num, line in enumerate(
+            lines[header_idx + 2 :], start=header_idx + 3
+        ):
             if not line or not any(line):  # Skip empty lines
                 continue
 
@@ -195,27 +199,60 @@ class QuickenCSVParser:
                 line[1] if len(line) > 1 and line[1] else line[0]
             )
 
-            # Check for section markers
-            if "Inflows" in category_col:
+            # Check for section markers (support both old and new formats)
+            # Section headers match pattern: ^"Income",,*$ or ^"Expenses",,*$
+            # Note: CSV reader removes the quotes, so check for unquoted strings
+            # This avoids matching category names that contain these words
+            category_stripped = category_col.strip()
+
+            # Check if this is a section header (word in column 0 followed by only empty columns)
+            is_income_header = category_stripped in (
+                "Income",
+                "Inflows",
+            ) and all(not col or not col.strip() for col in line[2:])
+            is_expense_header = category_stripped in (
+                "Expenses",
+                "Outflows",
+            ) and all(not col or not col.strip() for col in line[2:])
+
+            if is_income_header:
                 in_inflows = True
                 in_outflows = False
                 continue
-            elif "Outflows" in category_col:
+            elif is_expense_header:
                 in_inflows = False
                 in_outflows = True
                 continue
 
-            # Skip Inflows section
+            # Skip Inflows/Income section
             if in_inflows:
                 continue
 
-            # Only process Outflows
+            # Only process Outflows/Expenses
             if not in_outflows:
                 continue
 
             # Parse category and indentation level
             category, indent_level = self._parse_category(category_col)
             if not category:
+                continue
+
+            # Stop at "Other" section (top-level category)
+            if category == "Other" and indent_level == 0:
+                stopped_at_other = True
+                if self.verbose:
+                    print(
+                        f"\nStopped parsing at 'Other' section (line {line_num})"
+                    )
+                    print(
+                        "Subsequent lines will be dropped from expense data"
+                    )
+                dropped_lines.append((line_num, category_col.strip()))
+                continue
+
+            # If we've hit "Other", collect but don't process remaining lines
+            if stopped_at_other:
+                dropped_lines.append((line_num, category_col.strip()))
                 continue
 
             # Skip "Total" summary rows
@@ -252,6 +289,23 @@ class QuickenCSVParser:
                         record[date_col] = self._convert_to_numeric(value)
 
                 records.append(record)
+
+        # Report dropped lines
+        if dropped_lines:
+            if self.verbose:
+                print(
+                    f"\nDropped {len(dropped_lines)} lines after 'Other' section:"
+                )
+                for line_num, category in dropped_lines[
+                    :10
+                ]:  # Show first 10
+                    print(f"  Line {line_num}: {category}")
+                if len(dropped_lines) > 10:
+                    print(f"  ... and {len(dropped_lines) - 10} more")
+            else:
+                print(
+                    f"Note: {len(dropped_lines)} lines dropped after 'Other' section"
+                )
 
         return records
 

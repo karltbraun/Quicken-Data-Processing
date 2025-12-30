@@ -1,0 +1,133 @@
+# Quicken Expense Reporting Configuration
+# This file defines report groups, individual reports, and display settings
+
+report_groups:
+  - name: "Cell Phones (Family)"
+    output_name: "cell_phones_family"
+    categories:
+      - "Cell Phone Monthly - FAM"
+      - "Other Cell Phone Exp - FAM"
+      - "Reimb Cell Phones - FAM"
+    include_group_total: true
+    
+  - name: "Medicare Expenses - KTB"
+    output_name: "medicare_ktb"
+    categories:
+      - "IRMAA Part B - KTB"
+      - "Regular Part B - KTB"
+      - "IRMAA Part D - KTB"
+      - "Regular Part D - KTB"
+      - "Supplemental Part G - KTB"
+    include_group_total: true
+    
+  - name: "Medicare Expenses - MES"
+    output_name: "medicare_mes"
+    categories:
+      - "IRMAA Part B - MES"
+      - "Regular Part B - MES"
+      - "IRMAA Part D - MES"
+      - "Regular Part D - MES"
+      - "Supplemental Part G - MES"
+    include_group_total: true
+    
+  - name: "Medical Expenses"
+    output_name: "medical_expenses"
+    categories:
+      - "Office Visit - DC"
+      - "Procedures - DC"
+      - "Office - Dental"
+      - "Supplies - Dental"
+      - "Hospital, Surgery, etc"
+      - "Med Supplies - MD"
+      - "Misc - MD"
+      - "Office Visit - MD"
+      - "Tests and Procedures - MD"
+      - "Office Visit - PT"
+      - "Procedures - PT"
+    include_group_total: true
+    
+  - name: "Subscriptions (Family)"
+    output_name: "subscriptions_family"
+    categories:
+      - "App Subs - FAM"
+      - "Audio Subs - FAM"
+      - "NewsAndMags - FAM"
+      - "Video Subs - FAM"
+    include_group_total: true
+    
+  - name: "Utilities"
+    output_name: "utilities"
+    categories:
+      - "GasElecOnly"
+      - "WaterOnly"
+    include_group_total: true
+    
+  - name: "Night Out"
+    output_name: "night_out"
+    categories:
+      - "Family Night Out"
+      - "K&L Night Out"
+    include_group_total: true
+    
+  - name: "Household Goods"
+    output_name: "household_goods"
+    categories:
+      - "Consumables - HHG"
+      - "Fixed - HHG"
+    include_group_total: true
+    
+  - name: "Vehicles"
+    output_name: "vehicles"
+    categories:
+      - "Fuel Veh"
+      - "Actual Veh Ins"
+      - "Car Wash"
+      - "Maint - Veh"
+    include_group_total: true
+
+individual_reports:
+  - name: "Groceries"
+    output_name: "groceries"
+    category: "Groceries"
+    
+  - name: "Internet - Family"
+    output_name: "internet_family"
+    category: "Internet - FAM"
+
+display_settings:
+  colors:
+    palette:
+      - "#1f77b4"  # Blue
+      - "#2ca02c"  # Green
+      - "#d62728"  # Red
+      - "#9467bd"  # Purple
+      - "#8c564b"  # Brown
+      - "#ff7f0e"  # Orange
+      - "#7f7f7f"  # Gray
+      - "#e377c2"  # Pink
+      - "#bcbd22"  # Olive
+      - "#17becf"  # Teal
+      - "#aec7e8"  # Light blue
+      - "#98df8a"  # Light green
+      - "#ff9896"  # Light red / coral
+      - "#c5b0d5"  # Light purple
+      - "#c49c94"  # Light brown / tan
+    group_total_color: "#000000"  # Black
+  
+  chart_defaults:
+    figsize: [14, 8]
+    show_markers: true
+    line_width: 2
+    average_line_style: "dashed"
+    average_type: "expanding"  # "expanding" = cumulative from month 1; "rolling" = fixed window
+    # rolling_window: 3  # Only used when average_type is "rolling"
+
+output_settings:
+  base_dir: "./reports"
+  chart_format: "png"
+  table_format: "csv"  # or "xlsx", "html"
+  create_summary: true
+
+error_handling:
+  missing_categories: "fill_zero"  # Options: "fill_zero", "skip", "error"
+  partial_groups: "include"  # Options: "include", "skip", "error"
