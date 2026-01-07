@@ -102,17 +102,17 @@ def generate_tables(
     specific_reports: Optional[List[str]] = None,
 ) -> int:
     """
-    Generate CSV tables for all or specific reports.
+    Generate Excel tables for all or specific reports.
 
-    Creates timestamped CSV files containing expense data organized by
-    category and month. Files are named with pattern:
-    {output_name}_{YYYYMMDD_HHMMSS}.csv
+    Creates timestamped Excel files containing expense data organized by
+    category and month, with yearly totals and monthly averages.
+    Files are named with pattern: {output_name}_{YYYYMMDD_HHMMSS}.xlsx
 
     Args:
         reports: Dictionary mapping output names to report DataFrames.
                 Each DataFrame contains category rows with monthly expense columns.
         config: Report configuration object (used for future extensions)
-        output_dir: Directory path where CSV files will be saved.
+        output_dir: Directory path where Excel files will be saved.
                    Created if it doesn't exist.
         timestamp: Timestamp string for filename (YYYYMMDD_HHMMSS)
         specific_reports: Optional list of output names to generate.
@@ -134,15 +134,95 @@ def generate_tables(
         if specific_reports and output_name not in specific_reports:
             continue
 
+        # Get month columns
+        month_columns = [
+            col
+            for col in report_df.columns
+            if col not in ["category", "indent_level"]
+        ]
+
+        # Add Yearly Total and Monthly Average columns
+        report_with_totals = report_df.copy()
+        report_with_totals["Yearly Total"] = report_with_totals[
+            month_columns
+        ].sum(axis=1)
+        report_with_totals["Monthly Average"] = (
+            report_with_totals["Yearly Total"] / len(month_columns)
+        )
+
+        # Reorder columns: category, indent_level, months, Yearly Total, Monthly Average
+        column_order = (
+            ["category", "indent_level"]
+            + month_columns
+            + ["Yearly Total", "Monthly Average"]
+        )
+        report_with_totals = report_with_totals[column_order]
+
         # Generate table filename with timestamp
         save_path = os.path.join(
-            output_dir, f"{output_name}_{timestamp}.csv"
+            output_dir, f"{output_name}_{timestamp}.xlsx"
         )
 
         try:
-            report_df.to_csv(save_path, index=False)
+            # Write to Excel with formatting
+            with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
+                report_with_totals.to_excel(
+                    writer, sheet_name="Report", index=False
+                )
+
+                # Get the worksheet to apply formatting
+                worksheet = writer.sheets["Report"]
+
+                # Auto-adjust column widths
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if cell.value:
+                                max_length = max(
+                                    max_length, len(str(cell.value))
+                                )
+                        except Exception:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[
+                        column_letter
+                    ].width = adjusted_width
+
+                # Create formal Excel Table
+                from openpyxl.worksheet.table import Table, TableStyleInfo
+                
+                # Calculate table range
+                num_rows = len(report_with_totals)
+                num_cols = len(report_with_totals.columns)
+                end_col_letter = worksheet.cell(1, num_cols).column_letter
+                table_range = f"A1:{end_col_letter}{num_rows + 1}"
+                
+                # Create table with a style
+                table = Table(displayName=f"Table_{output_name}", ref=table_range)
+                style = TableStyleInfo(
+                    name="TableStyleMedium2",
+                    showFirstColumn=False,
+                    showLastColumn=False,
+                    showRowStripes=True,
+                    showColumnStripes=False
+                )
+                table.tableStyleInfo = style
+                worksheet.add_table(table)
+
+                # Apply accounting number format to expense columns
+                # Accounting format: _($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)
+                accounting_format = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
+                
+                # Format all columns except 'category' and 'indent_level' (columns 1 and 2)
+                for col_idx in range(3, num_cols + 1):  # Start from column C (3)
+                    for row_idx in range(2, num_rows + 2):  # Skip header row
+                        cell = worksheet.cell(row=row_idx, column=col_idx)
+                        cell.number_format = accounting_format
+
             table_count += 1
-            print(f"  ✓ {output_name}_{timestamp}.csv")
+            print(f"  ✓ {output_name}_{timestamp}.xlsx")
         except Exception as e:
             print(f"  ✗ {output_name}: {e}", file=sys.stderr)
 
