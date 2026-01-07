@@ -39,6 +39,7 @@ dependencies = [
     "pyyaml>=6.0.0",           # YAML configuration file parsing
     "pydantic>=2.0.0",         # Data validation and settings management
     "python-dotenv>=1.0.0",    # Load environment variables from .env
+    "openpyxl>=3.1.0",         # Excel file generation
 ]
 
 [project.scripts]

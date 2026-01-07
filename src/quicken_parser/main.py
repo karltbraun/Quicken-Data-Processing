@@ -22,7 +22,6 @@ import argparse
 import os
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
@@ -99,6 +98,7 @@ def generate_tables(
     reports: dict,
     config: ReportConfig,
     output_dir: str,
+    timestamp: str,
     specific_reports: Optional[List[str]] = None,
 ) -> int:
     """
@@ -114,6 +114,7 @@ def generate_tables(
         config: Report configuration object (used for future extensions)
         output_dir: Directory path where CSV files will be saved.
                    Created if it doesn't exist.
+        timestamp: Timestamp string for filename (YYYYMMDD_HHMMSS)
         specific_reports: Optional list of output names to generate.
                          If None, generates all reports.
 
@@ -122,12 +123,11 @@ def generate_tables(
 
     Example:
         >>> reports = {'groceries': groceries_df, 'utilities': utilities_df}
-        >>> count = generate_tables(reports, config, './reports')
+        >>> count = generate_tables(reports, config, './reports', '20260106_120000')
         >>> print(f"Generated {count} tables")
     """
     os.makedirs(output_dir, exist_ok=True)
     table_count = 0
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for output_name, report_df in reports.items():
         # Skip if specific reports requested and this isn't one
@@ -149,12 +149,254 @@ def generate_tables(
     return table_count
 
 
+def generate_summary_excel(
+    reports: dict,
+    config: ReportConfig,
+    output_dir: str,
+    timestamp: str,
+) -> str:
+    """
+    Generate a consolidated Excel summary of all reports.
+
+    Creates a single Excel file with all expense categories combined into
+    one table, showing monthly totals, yearly totals, and monthly averages.
+
+    Args:
+        reports: Dictionary mapping output names to report DataFrames
+        config: Report configuration object
+        output_dir: Directory path where Excel file will be saved
+        timestamp: Timestamp string for filename (YYYYMMDD_HHMMSS)
+
+    Returns:
+        Path to the generated Excel file
+
+    Excel Structure:
+        - Column A: Category name
+        - Columns B-M: Monthly totals (Jan-Dec)
+        - Column N: Yearly total
+        - Column O: Monthly average
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Collect all data with report grouping
+    summary_data = []
+
+    # Get month columns from first report (all reports have same structure)
+    first_report = next(iter(reports.values()))
+    month_columns = [
+        col
+        for col in first_report.columns
+        if col not in ["category", "indent_level"]
+    ]
+
+    # Process each report
+    for output_name, report_df in reports.items():
+        # Get report title
+        report_title = None
+        for group in config.get_report_groups():
+            if group.output_name == output_name:
+                report_title = group.name
+                break
+        if not report_title:
+            for individual in config.get_individual_reports():
+                if individual.output_name == output_name:
+                    report_title = individual.name
+                    break
+
+        # Add all rows from this report
+        for _, row in report_df.iterrows():
+            category = row["category"]
+            monthly_values = [row[col] for col in month_columns]
+            yearly_total = sum(monthly_values)
+            monthly_avg = (
+                yearly_total / len(monthly_values) if monthly_values else 0
+            )
+
+            summary_data.append(
+                {
+                    "Report": report_title,
+                    "Category": category,
+                    **{
+                        month_columns[i]: monthly_values[i]
+                        for i in range(len(month_columns))
+                    },
+                    "Yearly Total": yearly_total,
+                    "Monthly Average": monthly_avg,
+                }
+            )
+
+    # Create DataFrame
+    summary_df = pd.DataFrame(summary_data)
+
+    # Reorder columns: Report, Category, months, Yearly Total, Monthly Average
+    column_order = (
+        ["Report", "Category"]
+        + month_columns
+        + ["Yearly Total", "Monthly Average"]
+    )
+    summary_df = summary_df[column_order]
+
+    # Save to Excel
+    excel_path = os.path.join(
+        output_dir, f"expense_summary_{timestamp}.xlsx"
+    )
+
+    with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+        summary_df.to_excel(
+            writer, sheet_name="Expense Summary", index=False
+        )
+
+        # Get the worksheet to apply formatting
+        worksheet = writer.sheets["Expense Summary"]
+
+        # Auto-adjust column widths
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except Exception:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            worksheet.column_dimensions[
+                column_letter
+            ].width = adjusted_width
+
+    return excel_path
+
+
+def generate_summary_pie_chart(
+    reports: dict,
+    config: ReportConfig,
+    output_dir: str,
+    timestamp: str,
+) -> str:
+    """
+    Generate a pie chart showing expense distribution by monthly averages.
+
+    Creates a pie chart visualization of expense categories based on their
+    monthly average spending. Shows only categories/groups with spending
+    (excludes categories with zero or positive values).
+
+    Args:
+        reports: Dictionary mapping output names to report DataFrames
+        config: Report configuration object
+        output_dir: Directory path where chart will be saved
+        timestamp: Timestamp string for filename (YYYYMMDD_HHMMSS)
+
+    Returns:
+        Path to the generated pie chart PNG file
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Collect group totals and individual reports with their monthly averages
+    chart_data = []
+
+    # Get month columns from first report
+    first_report = next(iter(reports.values()))
+    month_columns = [
+        col
+        for col in first_report.columns
+        if col not in ["category", "indent_level"]
+    ]
+
+    # Process each report
+    for output_name, report_df in reports.items():
+        # Get report title
+        report_title = None
+        for group in config.get_report_groups():
+            if group.output_name == output_name:
+                report_title = group.name
+                # For grouped reports, use the Group Total row
+                group_total_row = report_df[
+                    report_df["category"] == "Group Total"
+                ]
+                if not group_total_row.empty:
+                    row = group_total_row.iloc[0]
+                    monthly_values = [
+                        abs(row[col]) for col in month_columns
+                    ]
+                    monthly_avg = sum(monthly_values) / len(monthly_values)
+                    if monthly_avg > 0:  # Only include if there's spending
+                        chart_data.append(
+                            {"label": report_title, "value": monthly_avg}
+                        )
+                break
+
+        if not report_title:
+            # Individual report - use the single row
+            for individual in config.get_individual_reports():
+                if individual.output_name == output_name:
+                    report_title = individual.name
+                    row = report_df.iloc[0]
+                    monthly_values = [
+                        abs(row[col]) for col in month_columns
+                    ]
+                    monthly_avg = sum(monthly_values) / len(monthly_values)
+                    if monthly_avg > 0:  # Only include if there's spending
+                        chart_data.append(
+                            {"label": report_title, "value": monthly_avg}
+                        )
+                    break
+
+    # Sort by value descending
+    chart_data.sort(key=lambda x: x["value"], reverse=True)
+
+    # Prepare data for pie chart
+    labels = [item["label"] for item in chart_data]
+    values = [item["value"] for item in chart_data]
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Create pie chart
+    colors = plt.cm.Set3(range(len(labels)))
+    wedges, texts, autotexts = ax.pie(
+        values,
+        labels=labels,
+        autopct=lambda pct: f"${pct * sum(values) / 100:.0f}\n({pct:.1f}%)",
+        startangle=90,
+        colors=colors,
+        textprops={"fontsize": 9},
+    )
+
+    # Enhance text visibility
+    for autotext in autotexts:
+        autotext.set_color("black")
+        autotext.set_weight("bold")
+        autotext.set_fontsize(8)
+
+    # Add title
+    ax.set_title(
+        f"Monthly Average Expense Distribution\nTotal: ${sum(values):.2f}/month",
+        fontsize=14,
+        fontweight="bold",
+        pad=20,
+    )
+
+    # Equal aspect ratio ensures circular pie
+    ax.axis("equal")
+
+    # Save chart
+    chart_path = os.path.join(
+        output_dir, f"expense_summary_pie_{timestamp}.png"
+    )
+    plt.tight_layout()
+    plt.savefig(chart_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    return chart_path
+
+
 def main(
     config_path: str,
     input_csv: str,
     charts_only: bool = False,
     tables_only: bool = False,
     specific_reports: Optional[List[str]] = None,
+    summary_excel: bool = False,
     verbose: bool = False,
 ) -> int:
     """
@@ -258,9 +500,12 @@ def main(
         # Step 4: Generate outputs
         output_settings = config.get_output_settings()
         base_dir = output_settings.base_dir
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         generated_charts = 0
         generated_tables = 0
+        excel_summary_path = None
+        pie_chart_path = None
 
         # Generate charts
         if not tables_only:
@@ -276,13 +521,27 @@ def main(
         # Generate tables
         if not charts_only:
             print("\n[5] Generating tables...")
-            tables_dir = output_dir = base_dir  # Save directly in base_dir
+            tables_dir = os.path.join(base_dir, "tables")
             generated_tables = generate_tables(
-                reports, config, tables_dir, specific_reports
+                reports, config, tables_dir, timestamp, specific_reports
             )
             print(
                 f"    Generated {generated_tables} table(s) in {tables_dir}/"
             )
+
+        # Generate Excel summary
+        if summary_excel:
+            print("\n[6] Generating Excel summary...")
+            excel_summary_path = generate_summary_excel(
+                reports, config, base_dir, timestamp
+            )
+            print(f"    ✓ {os.path.basename(excel_summary_path)}")
+
+            # Generate pie chart
+            pie_chart_path = generate_summary_pie_chart(
+                reports, config, base_dir, timestamp
+            )
+            print(f"    ✓ {os.path.basename(pie_chart_path)}")
 
         # Summary
         print("\n" + "=" * 70)
@@ -295,6 +554,11 @@ def main(
             print(f"Charts:         {generated_charts}")
         if not charts_only:
             print(f"Tables:         {generated_tables}")
+        if summary_excel:
+            print(
+                f"Excel Summary:  {os.path.basename(excel_summary_path)}"
+            )
+            print(f"Pie Chart:      {os.path.basename(pie_chart_path)}")
         print(f"Output:         {base_dir}/")
         print("=" * 70)
         print("✓ Report generation completed successfully!")
@@ -354,8 +618,8 @@ Examples:
     parser.add_argument(
         "-c",
         "--config",
-        required=True,
-        help="Path to YAML configuration file",
+        default="reports_config.yaml",
+        help="Path to YAML configuration file (default: reports_config.yaml)",
     )
 
     parser.add_argument(
@@ -384,6 +648,12 @@ Examples:
     )
 
     parser.add_argument(
+        "--summary-excel",
+        action="store_true",
+        help="Generate consolidated Excel summary and pie chart of all reports",
+    )
+
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -408,6 +678,7 @@ Examples:
         charts_only=args.charts_only,
         tables_only=args.tables_only,
         specific_reports=specific_reports,
+        summary_excel=args.summary_excel,
         verbose=args.verbose,
     )
 
