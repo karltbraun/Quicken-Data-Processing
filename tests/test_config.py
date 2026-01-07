@@ -52,7 +52,7 @@ def main():
     display = config.get_display_settings()
     print(f"Color palette: {len(display.colors.palette)} colors")
     print(f"Group total color: {display.colors.group_total_color}")
-    print(f"\nChart defaults:")
+    print("\nChart defaults:")
     print(f"  Figure size: {display.chart_defaults.figsize}")
     print(f"  Show markers: {display.chart_defaults.show_markers}")
     print(f"  Line width: {display.chart_defaults.line_width}")

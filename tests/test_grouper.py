@@ -39,7 +39,7 @@ def main():
     print(f"Match rate: {validation['match_rate']:.1%}")
 
     if validation["missing"]:
-        print(f"\nMissing categories (will be filled with $0):")
+        print("\nMissing categories (will be filled with $0):")
         for cat in validation["missing"]:
             print(f"  - {cat}")
 
@@ -63,10 +63,10 @@ def main():
         # Check for Group Total
         has_total = "Group Total" in report_df["category"].values
         if has_total:
-            print(f"  ✓ Has Group Total row")
+            print("  ✓ Has Group Total row")
 
         # Show categories
-        print(f"  Categories:")
+        print("  Categories:")
         for cat in report_df["category"].values:
             print(f"    - {cat}")
 
@@ -84,23 +84,21 @@ def main():
     # Groceries (individual)
     if "groceries" in reports:
         groceries = reports["groceries"]
-        print(f"\nGroceries Report:")
+        print("\nGroceries Report:")
         print(f"  Shape: {groceries.shape}")
         print(groceries.to_string())
 
     # Utilities (grouped)
     if "utilities" in reports:
         utilities = reports["utilities"]
-        print(f"\nUtilities Report:")
+        print("\nUtilities Report:")
         print(f"  Shape: {utilities.shape}")
         print(utilities.to_string())
 
     print("\n" + "=" * 70)
     print("✓ Grouper test completed successfully!")
     print("=" * 70)
-    print(
-        f"\nAll {len(reports)} reports are ready for charting/table generation"
-    )
+    print(f"\nAll {len(reports)} reports are ready for charting/table generation")
 
 
 if __name__ == "__main__":

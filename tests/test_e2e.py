@@ -39,12 +39,12 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     display_settings = config.get_display_settings()
-    
+
     chart_count = 0
     for output_name, report_df in reports.items():
         # Determine if it's a group or individual report
         is_group = len(report_df) > 1
-        
+
         # Get report name for title
         if is_group:
             # Find the group config
@@ -58,11 +58,11 @@ def main():
                 if individual.output_name == output_name:
                     title = f"{individual.name} - Monthly Expenses"
                     break
-        
+
         # Generate chart
         save_path = os.path.join(output_dir, f"{output_name}.png")
         print(f"  Creating chart: {output_name} ({len(report_df)} rows)")
-        
+
         try:
             fig = plot_monthly_trends(
                 report_df,
@@ -70,7 +70,7 @@ def main():
                 window=None,  # expanding cumulative average
                 title=title,
                 figsize=tuple(display_settings.chart_defaults.figsize),
-                save_path=save_path
+                save_path=save_path,
             )
             plt.close(fig)
             chart_count += 1
@@ -89,15 +89,15 @@ def main():
     print(f"Total reports:     {len(reports)}")
     print(f"Charts generated:  {chart_count}")
     print(f"Output directory:  {output_dir}/")
-    
+
     print("\n" + "=" * 70)
     print("✓ END-TO-END TEST COMPLETED SUCCESSFULLY!")
     print("=" * 70)
-    
+
     # List generated files
     print("\nGenerated chart files:")
     for filename in sorted(os.listdir(output_dir)):
-        if filename.endswith('.png'):
+        if filename.endswith(".png"):
             filepath = os.path.join(output_dir, filename)
             size_kb = os.path.getsize(filepath) / 1024
             print(f"  - {filename} ({size_kb:.1f} KB)")

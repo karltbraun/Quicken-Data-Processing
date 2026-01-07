@@ -120,9 +120,7 @@ class QuickenCSVParser:
             # Extract metadata from header lines
             metadata = self._extract_metadata(lines)
             if self.verbose:
-                print(
-                    f"Report period: {metadata['start_date']} to {metadata['end_date']}"
-                )
+                print(f"Report period: {metadata['start_date']} to {metadata['end_date']}")
 
             # Find header row and extract date columns
             header_idx, date_columns = self._find_header(lines)
@@ -130,9 +128,7 @@ class QuickenCSVParser:
                 print(f"Found {len(date_columns)} date columns")
 
             # Parse data rows
-            records = self._parse_data_rows(
-                lines, header_idx, date_columns
-            )
+            records = self._parse_data_rows(lines, header_idx, date_columns)
 
             if not records:
                 return pd.DataFrame()
@@ -172,9 +168,7 @@ class QuickenCSVParser:
         # Line 2 should have the date range
         if len(lines) > 1:
             date_line = lines[1][0] if lines[1] else ""
-            date_pattern = (
-                r"(\d{1,2}/\d{1,2}/\d{4})\s*-\s*(\d{1,2}/\d{1,2}/\d{4})"
-            )
+            date_pattern = r"(\d{1,2}/\d{1,2}/\d{4})\s*-\s*(\d{1,2}/\d{1,2}/\d{4})"
             match = re.search(date_pattern, date_line)
 
             if match:
@@ -204,9 +198,7 @@ class QuickenCSVParser:
             if line and "Category" in line[0]:
                 # This is the header row
                 # Extract date columns (skip "Category" and "Total")
-                date_columns = [
-                    col for col in line[2:-1] if col and "/" in col
-                ]
+                date_columns = [col for col in line[2:-1] if col and "/" in col]
                 return idx, date_columns
 
         raise ValueError("Could not find header row with 'Category'")
@@ -235,16 +227,12 @@ class QuickenCSVParser:
         stopped_at_other = False
 
         # Start parsing after separator line (header_idx + 1)
-        for line_num, line in enumerate(
-            lines[header_idx + 2 :], start=header_idx + 3
-        ):
+        for line_num, line in enumerate(lines[header_idx + 2 :], start=header_idx + 3):
             if not line or not any(line):  # Skip empty lines
                 continue
 
             # Get category from first or second column
-            category_col = (
-                line[1] if len(line) > 1 and line[1] else line[0]
-            )
+            category_col = line[1] if len(line) > 1 and line[1] else line[0]
 
             # Check for section markers (support both old and new formats)
             # Section headers match pattern: ^"Income",,*$ or ^"Expenses",,*$
@@ -288,12 +276,8 @@ class QuickenCSVParser:
             if category == "Other" and indent_level == 0:
                 stopped_at_other = True
                 if self.verbose:
-                    print(
-                        f"\nStopped parsing at 'Other' section (line {line_num})"
-                    )
-                    print(
-                        "Subsequent lines will be dropped from expense data"
-                    )
+                    print(f"\nStopped parsing at 'Other' section (line {line_num})")
+                    print("Subsequent lines will be dropped from expense data")
                 dropped_lines.append((line_num, category_col.strip()))
                 continue
 
@@ -311,15 +295,11 @@ class QuickenCSVParser:
                 continue
 
             # Extract values for each month (skip Category column and Total column)
-            values = (
-                line[2:-1] if len(line) > len(date_columns) else line[2:]
-            )
+            values = line[2:-1] if len(line) > len(date_columns) else line[2:]
 
             # Only create record if there are actual numeric values (excluding 0.00)
             has_nonzero_values = any(
-                val
-                and val.strip()
-                and val.strip() not in ("0.00", "0", "")
+                val and val.strip() and val.strip() not in ("0.00", "0", "")
                 for val in values
                 if val
             )
@@ -340,19 +320,13 @@ class QuickenCSVParser:
         # Report dropped lines
         if dropped_lines:
             if self.verbose:
-                print(
-                    f"\nDropped {len(dropped_lines)} lines after 'Other' section:"
-                )
-                for line_num, category in dropped_lines[
-                    :10
-                ]:  # Show first 10
+                print(f"\nDropped {len(dropped_lines)} lines after 'Other' section:")
+                for line_num, category in dropped_lines[:10]:  # Show first 10
                     print(f"  Line {line_num}: {category}")
                 if len(dropped_lines) > 10:
                     print(f"  ... and {len(dropped_lines) - 10} more")
             else:
-                print(
-                    f"Note: {len(dropped_lines)} lines dropped after 'Other' section"
-                )
+                print(f"Note: {len(dropped_lines)} lines dropped after 'Other' section")
 
         return records
 
@@ -399,13 +373,7 @@ class QuickenCSVParser:
             return None
 
         # Remove quotes, dollar signs, commas, and whitespace
-        cleaned = (
-            value.strip()
-            .strip('"')
-            .replace("$", "")
-            .replace(",", "")
-            .strip()
-        )
+        cleaned = value.strip().strip('"').replace("$", "").replace(",", "").strip()
 
         if not cleaned:
             return None
@@ -416,9 +384,7 @@ class QuickenCSVParser:
             return None
 
 
-def parse_quicken_csv(
-    csv_path: str, verbose: bool = False
-) -> pd.DataFrame:
+def parse_quicken_csv(csv_path: str, verbose: bool = False) -> pd.DataFrame:
     """
     Convenience function to parse a Quicken expense CSV.
 
@@ -446,7 +412,7 @@ if __name__ == "__main__":
         print(f"Parsing: {csv_file}")
         df = parse_quicken_csv(csv_file, verbose=True)
         print(f"\nDataFrame shape: {df.shape}")
-        print(f"\nFirst few rows:")
+        print("\nFirst few rows:")
         print(df.head())
         print(f"\nColumns: {df.columns.tolist()}")
     else:

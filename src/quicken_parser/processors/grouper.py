@@ -70,9 +70,7 @@ def get_or_fill_category(
     return matching.iloc[0][month_columns]
 
 
-def add_group_total(
-    df: pd.DataFrame, month_columns: List[str]
-) -> pd.DataFrame:
+def add_group_total(df: pd.DataFrame, month_columns: List[str]) -> pd.DataFrame:
     """
     Add a 'Group Total' row summing all categories.
 
@@ -136,9 +134,7 @@ def create_grouped_report(
     report_data = []
 
     for category in group.categories:
-        series = get_or_fill_category(
-            df, category, month_columns, error_handling
-        )
+        series = get_or_fill_category(df, category, month_columns, error_handling)
 
         if series is None:  # Skip mode
             continue
@@ -153,9 +149,7 @@ def create_grouped_report(
     # Check if we have any data
     if not report_data:
         if error_handling.partial_groups == "error":
-            raise ValueError(
-                f"No categories found for group: {group.name}"
-            )
+            raise ValueError(f"No categories found for group: {group.name}")
         elif error_handling.partial_groups == "skip":
             return None
 
@@ -199,9 +193,7 @@ def create_individual_report(
     Raises:
         ValueError: If error mode enabled and category not found
     """
-    series = get_or_fill_category(
-        df, report.category, month_columns, error_handling
-    )
+    series = get_or_fill_category(df, report.category, month_columns, error_handling)
 
     if series is None:  # Skip mode
         return None
@@ -215,9 +207,7 @@ def create_individual_report(
     return pd.DataFrame([row])
 
 
-def create_report_groups(
-    df: pd.DataFrame, config: ReportConfig
-) -> Dict[str, pd.DataFrame]:
+def create_report_groups(df: pd.DataFrame, config: ReportConfig) -> Dict[str, pd.DataFrame]:
     """
     Create grouped DataFrames for all configured reports.
 
@@ -250,8 +240,7 @@ def create_report_groups(
     month_columns = [
         col
         for col in df.columns
-        if col
-        not in ["category", "indent_level", "total", "monthly_average"]
+        if col not in ["category", "indent_level", "total", "monthly_average"]
     ]
 
     error_handling = config.get_error_handling()
@@ -259,18 +248,14 @@ def create_report_groups(
 
     # Process report groups
     for group in config.get_report_groups():
-        report_df = create_grouped_report(
-            df, group, month_columns, error_handling
-        )
+        report_df = create_grouped_report(df, group, month_columns, error_handling)
 
         if report_df is not None:  # None if skipped
             reports[group.output_name] = report_df
 
     # Process individual reports
     for report in config.get_individual_reports():
-        report_df = create_individual_report(
-            df, report, month_columns, error_handling
-        )
+        report_df = create_individual_report(df, report, month_columns, error_handling)
 
         if report_df is not None:  # None if skipped
             reports[report.output_name] = report_df
@@ -304,9 +289,7 @@ def get_month_columns(df: pd.DataFrame) -> List[str]:
     ]
 
 
-def validate_against_config(
-    df: pd.DataFrame, config: ReportConfig
-) -> Dict[str, any]:
+def validate_against_config(df: pd.DataFrame, config: ReportConfig) -> Dict[str, any]:
     """
     Validate parsed data against configuration.
 
@@ -335,7 +318,5 @@ def validate_against_config(
         "total_configured": len(configured_categories),
         "found": sorted(found),
         "missing": sorted(missing),
-        "match_rate": len(found) / len(configured_categories)
-        if configured_categories
-        else 0,
+        "match_rate": len(found) / len(configured_categories) if configured_categories else 0,
     }
