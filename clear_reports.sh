@@ -6,4 +6,8 @@ if [[ "$confirm" != [yY] ]]; then
     exit 1
 fi
 rm ./reports/*.csv
+rm ./reports/*.xlsx
+rm ./reports/*.png
 rm  ./reports/charts/*.png
+rm  ./reports/tables/*.csv
+rm  ./reports/tables/*.xlsx

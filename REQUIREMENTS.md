@@ -6,6 +6,35 @@ A configuration-driven expense reporting system that parses Quicken CSV exports 
 
 **Status**: Version 1.0 - Production ready
 
+## Code Style Requirements
+
+**Formatting**: This project uses **Ruff** as the code formatter.
+
+### Python Code Style Rules
+
+- **No whitespace on blank lines**: Blank lines must contain only the newline character (`\n`), with no spaces or tabs
+- **Consistent indentation**: 4 spaces for Python code
+- **Line length**: Maximum 88 characters (Black/Ruff default)
+- **Imports**: Organized and sorted per Ruff standards
+
+### Markdown Style Rules
+
+- **Blank line after headers**: All section headers (# ## ### etc.) must be followed by a blank line before content
+- **Blank line before lists**: List headers (text immediately before a list) must be followed by a blank line before the first list item
+- **Consistent formatting**: Follow standard markdown conventions for readability
+
+### Running Formatter
+
+```bash
+# Format all Python files
+ruff format .
+
+# Check formatting without changes
+ruff format --check .
+```
+
+**Note for AI assistants**: Always ensure blank lines contain no whitespace. Run `ruff format` after editing to maintain consistency.
+
 ## Architecture
 
 ### Module Structure
@@ -409,6 +438,7 @@ def cli() -> None:
 ### Error Handling Strategy
 
 **Implemented error modes:**
+
 - **Missing categories**: Fill with $0 (default), skip, or error
 - **Section detection**: Exact matching prevents false positives
 - **"Other" section**: Parser stops to avoid extraneous data
@@ -416,6 +446,7 @@ def cli() -> None:
     4. Generate charts
     5. Generate tables
     6. Print summary
+
 ### Testing Strategy
 
 **Implemented tests:**
@@ -461,12 +492,14 @@ if col == "Income" or col == "Expenses":
 ### "Other" Section Handling
 
 Parser stops at "Other" section:
+
 - Lines after "Other" are dropped and reported
 - Prevents parsing extraneous summary data
 
 ## Future Enhancements
 
 **Potential additions:**
+
 - [ ] Excel (XLSX) and HTML table formats
 - [ ] Rolling average support (in addition to expanding)
 - [ ] PDF export of charts

@@ -19,9 +19,7 @@ def get_or_create_zero_series(df, category_name, month_columns):
     """Get category data or create a zero-filled series if category doesn't exist."""
     matching = df[df["category"] == category_name]
     if matching.empty:
-        print(
-            f"  ⚠️  Category '{category_name}' not found - using $0 for all months"
-        )
+        print(f"  ⚠️  Category '{category_name}' not found - using $0 for all months")
         zero_data = {col: 0.0 for col in month_columns}
         return pd.Series(zero_data)
     return matching.iloc[0][month_columns]
@@ -40,8 +38,7 @@ def main():
     month_columns = [
         col
         for col in df.columns
-        if col
-        not in ["category", "indent_level", "total", "monthly_average"]
+        if col not in ["category", "indent_level", "total", "monthly_average"]
     ]
     print(f"Month columns: {month_columns}")
 

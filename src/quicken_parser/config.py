@@ -34,7 +34,7 @@ Version: 1.0
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import yaml
 
@@ -75,9 +75,7 @@ class ReportGroup:
         if not self.output_name:
             raise ValueError("Report group must have an output_name")
         if not self.categories:
-            raise ValueError(
-                f"Report group '{self.name}' must have categories"
-            )
+            raise ValueError(f"Report group '{self.name}' must have categories")
 
 
 @dataclass
@@ -112,9 +110,7 @@ class IndividualReport:
         if not self.output_name:
             raise ValueError("Individual report must have an output_name")
         if not self.category:
-            raise ValueError(
-                f"Individual report '{self.name}' must have a category"
-            )
+            raise ValueError(f"Individual report '{self.name}' must have a category")
 
 
 @dataclass
@@ -172,17 +168,11 @@ class ChartDefaults:
         if len(self.figsize) != 2:
             raise ValueError("figsize must be [width, height]")
         if self.average_type not in ["expanding", "rolling"]:
-            raise ValueError(
-                "average_type must be 'expanding' or 'rolling'"
-            )
+            raise ValueError("average_type must be 'expanding' or 'rolling'")
         if self.average_type == "rolling" and self.rolling_window is None:
-            raise ValueError(
-                "rolling_window required when average_type is 'rolling'"
-            )
+            raise ValueError("rolling_window required when average_type is 'rolling'")
         if self.average_line_style not in ["dashed", "dotted", "solid"]:
-            raise ValueError(
-                "average_line_style must be 'dashed', 'dotted', or 'solid'"
-            )
+            raise ValueError("average_line_style must be 'dashed', 'dotted', or 'solid'")
 
 
 @dataclass
@@ -224,13 +214,9 @@ class OutputSettings:
     def __post_init__(self):
         """Validate output settings."""
         if self.chart_format not in ["png", "jpg", "svg", "pdf"]:
-            raise ValueError(
-                "chart_format must be 'png', 'jpg', 'svg', or 'pdf'"
-            )
+            raise ValueError("chart_format must be 'png', 'jpg', 'svg', or 'pdf'")
         if self.table_format not in ["csv", "xlsx", "html"]:
-            raise ValueError(
-                "table_format must be 'csv', 'xlsx', or 'html'"
-            )
+            raise ValueError("table_format must be 'csv', 'xlsx', or 'html'")
 
 
 @dataclass
@@ -257,13 +243,9 @@ class ErrorHandling:
     def __post_init__(self):
         """Validate error handling settings."""
         if self.missing_categories not in ["fill_zero", "skip", "error"]:
-            raise ValueError(
-                "missing_categories must be 'fill_zero', 'skip', or 'error'"
-            )
+            raise ValueError("missing_categories must be 'fill_zero', 'skip', or 'error'")
         if self.partial_groups not in ["include", "skip", "error"]:
-            raise ValueError(
-                "partial_groups must be 'include', 'skip', or 'error'"
-            )
+            raise ValueError("partial_groups must be 'include', 'skip', or 'error'")
 
 
 class ReportConfig:
@@ -299,9 +281,7 @@ class ReportConfig:
         """
         self.config_path = Path(config_path)
         if not self.config_path.exists():
-            raise FileNotFoundError(
-                f"Config file not found: {config_path}"
-            )
+            raise FileNotFoundError(f"Config file not found: {config_path}")
 
         # Load YAML
         with open(self.config_path, "r") as f:
@@ -315,35 +295,25 @@ class ReportConfig:
         """Parse raw config dict into typed objects."""
         # Parse report groups
         self._report_groups = [
-            ReportGroup(**group)
-            for group in self._raw_config.get("report_groups", [])
+            ReportGroup(**group) for group in self._raw_config.get("report_groups", [])
         ]
 
         # Parse individual reports
         self._individual_reports = [
-            IndividualReport(**report)
-            for report in self._raw_config.get("individual_reports", [])
+            IndividualReport(**report) for report in self._raw_config.get("individual_reports", [])
         ]
 
         # Parse display settings
         display_raw = self._raw_config.get("display_settings", {})
         colors = ColorSettings(**display_raw.get("colors", {}))
-        chart_defaults = ChartDefaults(
-            **display_raw.get("chart_defaults", {})
-        )
-        self._display_settings = DisplaySettings(
-            colors=colors, chart_defaults=chart_defaults
-        )
+        chart_defaults = ChartDefaults(**display_raw.get("chart_defaults", {}))
+        self._display_settings = DisplaySettings(colors=colors, chart_defaults=chart_defaults)
 
         # Parse output settings
-        self._output_settings = OutputSettings(
-            **self._raw_config.get("output_settings", {})
-        )
+        self._output_settings = OutputSettings(**self._raw_config.get("output_settings", {}))
 
         # Parse error handling
-        self._error_handling = ErrorHandling(
-            **self._raw_config.get("error_handling", {})
-        )
+        self._error_handling = ErrorHandling(**self._raw_config.get("error_handling", {}))
 
     def get_report_groups(self) -> List[ReportGroup]:
         """Get all configured report groups."""
@@ -380,11 +350,7 @@ class ReportConfig:
             r.output_name for r in self._individual_reports
         ]
         if len(all_output_names) != len(set(all_output_names)):
-            duplicates = [
-                name
-                for name in all_output_names
-                if all_output_names.count(name) > 1
-            ]
+            duplicates = [name for name in all_output_names if all_output_names.count(name) > 1]
             raise ValueError(f"Duplicate output_name found: {duplicates}")
 
         # Validate at least one report is configured

@@ -100,9 +100,7 @@ def plot_monthly_trends(
     ]
 
     # Extend colors if needed
-    colors = (base_colors * ((len(plot_df) // len(base_colors)) + 1))[
-        : len(plot_df)
-    ]
+    colors = (base_colors * ((len(plot_df) // len(base_colors)) + 1))[: len(plot_df)]
 
     # Plot each category
     for idx, (_, row) in enumerate(plot_df.iterrows()):
@@ -110,9 +108,7 @@ def plot_monthly_trends(
         values = row[date_cols].values
 
         # Use black for Group Total, otherwise use the color from palette
-        color = (
-            "#000000" if category_name == "Group Total" else colors[idx]
-        )
+        color = "#000000" if category_name == "Group Total" else colors[idx]
 
         # Convert to positive values for plotting (expenses are negative)
         values = np.abs(values)
@@ -131,9 +127,7 @@ def plot_monthly_trends(
         # Calculate and plot average (dashed line)
         if window is None:
             # Expanding cumulative average
-            expanding_avg = (
-                pd.Series(values).expanding(min_periods=1).mean()
-            )
+            expanding_avg = pd.Series(values).expanding(min_periods=1).mean()
             ax.plot(
                 date_cols,
                 expanding_avg,
@@ -145,11 +139,7 @@ def plot_monthly_trends(
             )
         elif len(values) >= window:
             # Rolling window average
-            moving_avg = (
-                pd.Series(values)
-                .rolling(window=window, min_periods=1)
-                .mean()
-            )
+            moving_avg = pd.Series(values).rolling(window=window, min_periods=1).mean()
             ax.plot(
                 date_cols,
                 moving_avg,
@@ -184,9 +174,7 @@ def plot_monthly_trends(
     ax.grid(True, alpha=0.3)
 
     # Format y-axis as currency
-    ax.yaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, p: f"${x:,.0f}")
-    )
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
 
     # Tight layout
     plt.tight_layout()
@@ -243,9 +231,7 @@ def plot_category_breakdown(
     if chart_type == "bar":
         # Horizontal bar chart
         colors = sns.color_palette("viridis", len(sorted_df))
-        bars = ax.barh(
-            sorted_df["category"], sorted_df["total"], color=colors
-        )
+        bars = ax.barh(sorted_df["category"], sorted_df["total"], color=colors)
 
         # Add value labels
         for bar in bars:
@@ -262,9 +248,7 @@ def plot_category_breakdown(
 
         ax.set_xlabel("Total Expense ($)", fontsize=12, fontweight="bold")
         ax.set_ylabel("Category", fontsize=12, fontweight="bold")
-        ax.xaxis.set_major_formatter(
-            plt.FuncFormatter(lambda x, p: f"${x:,.0f}")
-        )
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
 
     elif chart_type == "pie":
         # Pie chart
@@ -286,9 +270,7 @@ def plot_category_breakdown(
             autotext.set_fontsize(9)
 
     else:
-        raise ValueError(
-            f"Invalid chart_type: {chart_type}. Use 'bar' or 'pie'."
-        )
+        raise ValueError(f"Invalid chart_type: {chart_type}. Use 'bar' or 'pie'.")
 
     # Title
     if title:
@@ -343,14 +325,10 @@ def plot_spending_summary(
     date_cols = [col for col in df.columns if "/" in str(col)]
 
     if "total" not in df.columns or not date_cols:
-        raise ValueError(
-            "DataFrame must have 'total' column and date columns"
-        )
+        raise ValueError("DataFrame must have 'total' column and date columns")
 
     # Get top categories
-    top_categories = df.nlargest(top_n, "total", keep="all")[
-        "category"
-    ].tolist()
+    top_categories = df.nlargest(top_n, "total", keep="all")["category"].tolist()
 
     # Create figure with subplots
     fig = plt.figure(figsize=figsize)
@@ -362,12 +340,8 @@ def plot_spending_summary(
     colors = sns.color_palette("viridis", len(sorted_df))
     ax1.barh(sorted_df["category"], sorted_df["total"].abs(), color=colors)
     ax1.set_xlabel("Total Expense ($)", fontsize=10, fontweight="bold")
-    ax1.set_title(
-        f"Top {top_n} Expense Categories", fontsize=12, fontweight="bold"
-    )
-    ax1.xaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, p: f"${x:,.0f}")
-    )
+    ax1.set_title(f"Top {top_n} Expense Categories", fontsize=12, fontweight="bold")
+    ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
     ax1.grid(True, alpha=0.3, axis="x")
 
     # 2. Monthly trends (top right - spans 2 rows)
@@ -393,11 +367,7 @@ def plot_spending_summary(
 
             # Moving average
             if len(values) >= 3:
-                moving_avg = (
-                    pd.Series(values)
-                    .rolling(window=3, min_periods=1)
-                    .mean()
-                )
+                moving_avg = pd.Series(values).rolling(window=3, min_periods=1).mean()
                 ax2.plot(
                     date_cols,
                     moving_avg,
@@ -409,9 +379,7 @@ def plot_spending_summary(
 
     ax2.set_xlabel("Month", fontsize=10, fontweight="bold")
     ax2.set_ylabel("Amount ($)", fontsize=10, fontweight="bold")
-    ax2.set_title(
-        "Monthly Trends (Top Categories)", fontsize=12, fontweight="bold"
-    )
+    ax2.set_title("Monthly Trends (Top Categories)", fontsize=12, fontweight="bold")
     ax2.legend(fontsize=8, loc="best")
     plt.setp(
         ax2.xaxis.get_majorticklabels(),
@@ -419,9 +387,7 @@ def plot_spending_summary(
         ha="right",
         fontsize=8,
     )
-    ax2.yaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, p: f"${x:,.0f}")
-    )
+    ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
     ax2.grid(True, alpha=0.3)
 
     # 3. Pie chart (bottom left)
@@ -444,9 +410,7 @@ def plot_spending_summary(
     ax3.set_title("Expense Distribution", fontsize=12, fontweight="bold")
 
     # Overall title
-    fig.suptitle(
-        "Expense Spending Summary", fontsize=16, fontweight="bold", y=0.98
-    )
+    fig.suptitle("Expense Spending Summary", fontsize=16, fontweight="bold", y=0.98)
 
     # Save if requested
     if save_path:
@@ -479,9 +443,7 @@ def plot_hierarchical_view(
         matplotlib Figure object
     """
     if "indent_level" not in df.columns or "total" not in df.columns:
-        raise ValueError(
-            "DataFrame must have 'indent_level' and 'total' columns"
-        )
+        raise ValueError("DataFrame must have 'indent_level' and 'total' columns")
 
     # Filter by max depth
     filtered_df = df[df["indent_level"] <= max_depth].copy()
@@ -495,15 +457,11 @@ def plot_hierarchical_view(
     # Color by indent level
     colors = sns.color_palette("viridis", max_depth + 1)
     color_map = {level: colors[level] for level in range(max_depth + 1)}
-    bar_colors = [
-        color_map[level] for level in filtered_df["indent_level"]
-    ]
+    bar_colors = [color_map[level] for level in filtered_df["indent_level"]]
 
     # Create horizontal bar chart with indentation
     y_positions = range(len(filtered_df))
-    bars = ax.barh(
-        y_positions, filtered_df["total"].abs(), color=bar_colors
-    )
+    bars = ax.barh(y_positions, filtered_df["total"].abs(), color=bar_colors)
 
     # Add indented category labels
     labels = []
@@ -514,9 +472,7 @@ def plot_hierarchical_view(
     ax.set_yticks(y_positions)
     ax.set_yticklabels(labels, fontsize=9)
     ax.set_xlabel("Total Expense ($)", fontsize=12, fontweight="bold")
-    ax.xaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, p: f"${x:,.0f}")
-    )
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
 
     # Title
     if title:

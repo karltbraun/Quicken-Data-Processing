@@ -34,7 +34,7 @@ def main():
     for i, col in enumerate(df_csv.columns, 1):
         print(f"  {i}. {col}")
 
-    print(f"\n\nFirst 10 Rows:")
+    print("\n\nFirst 10 Rows:")
     print(df_csv.head(10).to_string())
 
     # Save CSV output with date-based filename
@@ -51,9 +51,7 @@ def main():
         end_dt = datetime.strptime(end_date, "%m/%d/%Y")
         start_str = start_dt.strftime("%Y%m%d")
         end_str = end_dt.strftime("%Y%m%d")
-        output_path = (
-            f"./reports/Expense_Report_{start_str}_-_{end_str}.csv"
-        )
+        output_path = f"./reports/Expense_Report_{start_str}_-_{end_str}.csv"
     except:
         output_path = "./reports/Expense_Report.csv"
 
