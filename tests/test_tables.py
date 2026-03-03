@@ -10,8 +10,7 @@ def test_default_combined_workbook(tmp_path):
     """With table_format=xlsx and no flag, default is a single workbook."""
     cfg = ReportConfig("reports_config.yaml")
     out = cfg.get_output_settings()
-    out.table_format = "xlsx"
-    # note: do not touch out.combined_tables – default True
+    # config file now defaults table_format to "xlsx" and combined_tables=True
 
     reports = {
         "foo": pd.DataFrame({"category": ["a"], "2025-01": [100]}),

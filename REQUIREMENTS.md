@@ -143,7 +143,7 @@ display_settings:
 output_settings:
   base_dir: "./reports"
   chart_format: "png"
-  table_format: "csv" # or "xlsx", "html"
+  table_format: "xlsx" # default is xlsx now (other options: csv, html)
   # combined_tables defaults to true when format is xlsx; set to false to get
   # separate files instead
   create_summary: true

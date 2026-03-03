@@ -212,7 +212,8 @@ class OutputSettings:
     Attributes:
         base_dir: Base directory for all outputs (default: "./reports")
         chart_format: Image format for charts ("png", "jpg", "svg", "pdf")
-        table_format: Format for data tables ("csv", "xlsx", "html")
+        table_format: Format for data tables ("csv", "xlsx", "html").
+                      default is "xlsx" so output is an Excel workbook.
         combined_tables: When table_format=="xlsx", put all reports in one workbook
                         (defaults to True)
         create_summary: Whether to generate summary report (future feature)

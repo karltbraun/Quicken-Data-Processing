@@ -96,10 +96,10 @@ quicken-report --config reports_config.yaml --input data/Expenses-20250101-20251
 
 This will generate charts and tables in the `./reports/` directory.
 
-By default the tool writes a **single Excel workbook** when
-`table_format` is set to `xlsx` (the `combined_tables` option defaults to
-`true`). If you prefer separate files you can disable it in the config or
-on the command line.
+By default the tool writes a **single Excel workbook** because
+`table_format` is now `xlsx` and `combined_tables` defaults to `true`.
+If you prefer a different format (e.g. csv) or separate files you can
+override these values in the config or on the command line.
 
 Example YAML snippet:
 

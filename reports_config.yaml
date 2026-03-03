@@ -125,7 +125,7 @@ display_settings:
 output_settings:
   base_dir: "./reports"
   chart_format: "png"
-  table_format: "csv"  # or "xlsx", "html"
+  table_format: "xlsx"  # or "csv", "html" – workbook is now the default
   create_summary: true
 
 error_handling:
