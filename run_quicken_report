@@ -1,0 +1,96 @@
+#! /usr/bin/env bash
+# Set up the environment to run the quicken report
+# This script activates the project's virtual environment, prompts the
+# user for confirmation, and then invokes the `quicken-report` CLI with any
+# arguments supplied to the script.
+
+# Determine project root (directory containing this script)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_ACTIVATE="$SCRIPT_DIR/.venv/bin/activate"
+
+if [ ! -f "$VENV_ACTIVATE" ]; then
+    echo "ERROR: virtualenv activate script not found at $VENV_ACTIVATE" >&2
+    exit 1
+fi
+
+# Activate the virtual environment (handles spaces in path)
+# shellcheck source=/dev/null
+. "$VENV_ACTIVATE"
+
+# After activation, determine path to the quicken-report script
+VENV_BIN="$SCRIPT_DIR/.venv/bin"
+QUICKEN_CMD="$VENV_BIN/quicken-report"
+
+if [ ! -x "$QUICKEN_CMD" ]; then
+    echo "ERROR: quicken-report executable not found at $QUICKEN_CMD" >&2
+    exit 1
+fi
+
+# Determine input file path; it is required.
+# If the argument is not absolute, prefix with the workspace's data directory.
+INPUT_ARG=""
+if [ "$#" -gt 0 ]; then
+    INPUT_ARG="$1"
+    shift
+    if [[ "$INPUT_ARG" != /* ]]; then
+        INPUT_ARG="$SCRIPT_DIR/data/$INPUT_ARG"
+    fi
+    if [ ! -f "$INPUT_ARG" ]; then
+        echo "ERROR: input file not found: $INPUT_ARG" >&2
+        exit 1
+    fi
+else
+    # No argument given – try interactive selection from data directory
+    DATA_DIR="$SCRIPT_DIR/data"
+    if [ ! -d "$DATA_DIR" ]; then
+        echo "ERROR: data directory not found: $DATA_DIR" >&2
+        exit 2
+    fi
+    # collect csv filenames in data directory (basename only)
+    candidates=()
+    while IFS= read -r -d $'\0' file; do
+        candidates+=("$(basename "$file")")
+    done < <(find "$DATA_DIR" -maxdepth 1 -type f -name '*.csv' -print0)
+
+    if [ ${#candidates[@]} -eq 0 ]; then
+        echo "ERROR: no CSV files found in $DATA_DIR" >&2
+        exit 2
+    fi
+    echo "Select a file to process:" >&2
+    select choice in "${candidates[@]}" "(cancel)"; do
+        case $choice in
+            "(cancel)")
+                echo "aborted" >&2
+                exit 2
+                ;;
+            "")
+                echo "Invalid choice" >&2
+                ;;
+            *)
+                INPUT_ARG="$DATA_DIR/$choice"
+                break
+                ;;
+        esac
+    done
+fi
+
+# Ask user before running (allow default yes)
+read -r -p "Ready to run quicken-report? [y/N] " answer
+case "$answer" in
+    [yY][eE][sS]|[yY])
+        echo "running: $QUICKEN_CMD $( [ -n "$INPUT_ARG" ] && printf -- "--input %s " "$INPUT_ARG" ) $*"
+        # build command invocation
+        if [ -n "$INPUT_ARG" ]; then
+            "$QUICKEN_CMD" --input "$INPUT_ARG" "$@"
+        else
+            "$QUICKEN_CMD" "$@"
+        fi
+        EXIT_CODE=$?
+        ;;
+    *)
+        echo "aborted by user"
+        EXIT_CODE=0
+        ;;
+esac
+
+exit $EXIT_CODE
