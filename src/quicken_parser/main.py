@@ -94,6 +94,58 @@ def generate_charts(
     return chart_count
 
 
+# helper used by both single‑file and combined workflows
+
+
+def _format_worksheet(
+    worksheet, df: pd.DataFrame, output_name: str
+) -> None:
+    """Apply column widths, table style, and number formatting to *worksheet*.
+
+    ``df`` has already been arranged with totals and averages.
+    """
+    # Auto-adjust column widths
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            except Exception:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        worksheet.column_dimensions[column_letter].width = adjusted_width
+
+    # Create formal Excel Table
+    from openpyxl.worksheet.table import Table, TableStyleInfo
+
+    num_rows = len(df)
+    num_cols = len(df.columns)
+    end_col_letter = worksheet.cell(1, num_cols).column_letter
+    table_range = f"A1:{end_col_letter}{num_rows + 1}"
+
+    table = Table(displayName=f"Table_{output_name}", ref=table_range)
+    style = TableStyleInfo(
+        name="TableStyleMedium2",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    table.tableStyleInfo = style
+    worksheet.add_table(table)
+
+    # Format numeric columns (all except first two)
+    accounting_format = (
+        '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
+    )
+    for col_idx in range(3, num_cols + 1):
+        for row_idx in range(2, num_rows + 2):
+            cell = worksheet.cell(row=row_idx, column=col_idx)
+            cell.number_format = accounting_format
+
+
 def generate_tables(
     reports: dict,
     config: ReportConfig,
@@ -104,9 +156,11 @@ def generate_tables(
     """
     Generate Excel tables for all or specific reports.
 
-    Creates timestamped Excel files containing expense data organized by
-    category and month, with yearly totals and monthly averages.
-    Files are named with pattern: {output_name}_{YYYYMMDD_HHMMSS}.xlsx
+    The behaviour depends on :class:`OutputSettings`:
+    * when ``table_format`` is ``"xlsx"`` and ``combined_tables`` is
+      ``True`` the function writes **one workbook** containing a sheet for
+      each report (sheet names are the output names).
+    * otherwise it behaves as before, producing one file per report.
 
     Args:
         reports: Dictionary mapping output names to report DataFrames.
@@ -119,98 +173,90 @@ def generate_tables(
                          If None, generates all reports.
 
     Returns:
-        Number of tables successfully generated
-
-    Example:
-        >>> reports = {'groceries': groceries_df, 'utilities': utilities_df}
-        >>> count = generate_tables(reports, config, './reports', '20260106_120000')
-        >>> print(f"Generated {count} tables")
+        Number of tables/files generated (1 when combined, else number of
+        reports).
     """
     os.makedirs(output_dir, exist_ok=True)
     table_count = 0
 
-    for output_name, report_df in reports.items():
-        # Skip if specific reports requested and this isn't one
-        if specific_reports and output_name not in specific_reports:
-            continue
+    output_settings = config.get_output_settings()
+    combine = (
+        output_settings.table_format == "xlsx"
+        and output_settings.combined_tables
+    )
 
-        # Get month columns
-        month_columns = [
-            col for col in report_df.columns if col not in ["category", "indent_level"]
+    # helper for computing the embellished DataFrame
+    def prepare(df: pd.DataFrame) -> pd.DataFrame:
+        copy = df.copy()
+        # some dataframes (e.g. minimal tests) don't include indent_level
+        if "indent_level" not in copy.columns:
+            copy["indent_level"] = 0
+        months = [
+            col
+            for col in copy.columns
+            if col not in ["category", "indent_level"]
         ]
-
-        # Add Yearly Total and Monthly Average columns
-        report_with_totals = report_df.copy()
-        report_with_totals["Yearly Total"] = report_with_totals[month_columns].sum(axis=1)
-        report_with_totals["Monthly Average"] = report_with_totals["Yearly Total"] / len(
-            month_columns
+        copy["Yearly Total"] = copy[months].sum(axis=1)
+        copy["Monthly Average"] = copy["Yearly Total"] / len(months)
+        order = (
+            ["category", "indent_level"]
+            + months
+            + ["Yearly Total", "Monthly Average"]
         )
+        return copy[order]
 
-        # Reorder columns: category, indent_level, months, Yearly Total, Monthly Average
-        column_order = (
-            ["category", "indent_level"] + month_columns + ["Yearly Total", "Monthly Average"]
+    if combine:
+        save_path = os.path.join(
+            output_dir, f"all_reports_{timestamp}.xlsx"
         )
-        report_with_totals = report_with_totals[column_order]
-
-        # Generate table filename with timestamp
-        save_path = os.path.join(output_dir, f"{output_name}_{timestamp}.xlsx")
-
-        try:
-            # Write to Excel with formatting
-            with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
-                report_with_totals.to_excel(writer, sheet_name="Report", index=False)
-
-                # Get the worksheet to apply formatting
-                worksheet = writer.sheets["Report"]
-
-                # Auto-adjust column widths
-                for column in worksheet.columns:
-                    max_length = 0
-                    column_letter = column[0].column_letter
-                    for cell in column:
-                        try:
-                            if cell.value:
-                                max_length = max(max_length, len(str(cell.value)))
-                        except Exception:
-                            pass
-                    adjusted_width = min(max_length + 2, 50)
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
-
-                # Create formal Excel Table
-                from openpyxl.worksheet.table import Table, TableStyleInfo
-
-                # Calculate table range
-                num_rows = len(report_with_totals)
-                num_cols = len(report_with_totals.columns)
-                end_col_letter = worksheet.cell(1, num_cols).column_letter
-                table_range = f"A1:{end_col_letter}{num_rows + 1}"
-
-                # Create table with a style
-                table = Table(displayName=f"Table_{output_name}", ref=table_range)
-                style = TableStyleInfo(
-                    name="TableStyleMedium2",
-                    showFirstColumn=False,
-                    showLastColumn=False,
-                    showRowStripes=True,
-                    showColumnStripes=False,
+        with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
+            for output_name, report_df in reports.items():
+                if (
+                    specific_reports
+                    and output_name not in specific_reports
+                ):
+                    continue
+                report_with_totals = prepare(report_df)
+                report_with_totals.to_excel(
+                    writer, sheet_name=output_name, index=False
                 )
-                table.tableStyleInfo = style
-                worksheet.add_table(table)
-
-                # Apply accounting number format to expense columns
-                # Accounting format: _($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)
-                accounting_format = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
-
-                # Format all columns except 'category' and 'indent_level' (columns 1 and 2)
-                for col_idx in range(3, num_cols + 1):  # Start from column C (3)
-                    for row_idx in range(2, num_rows + 2):  # Skip header row
-                        cell = worksheet.cell(row=row_idx, column=col_idx)
-                        cell.number_format = accounting_format
-
-            table_count += 1
-            print(f"  ✓ {output_name}_{timestamp}.xlsx")
-        except Exception as e:
-            print(f"  ✗ {output_name}: {e}", file=sys.stderr)
+                worksheet = writer.sheets[output_name]
+                _format_worksheet(
+                    worksheet, report_with_totals, output_name
+                )
+        table_count = (
+            1
+            if any(
+                (not specific_reports) or (name in specific_reports)
+                for name in reports
+            )
+            else 0
+        )
+        if table_count:
+            print(f"  ✓ {os.path.basename(save_path)}")
+    else:
+        for output_name, report_df in reports.items():
+            if specific_reports and output_name not in specific_reports:
+                continue
+            report_with_totals = prepare(report_df)
+            save_path = os.path.join(
+                output_dir, f"{output_name}_{timestamp}.xlsx"
+            )
+            try:
+                with pd.ExcelWriter(
+                    save_path, engine="openpyxl"
+                ) as writer:
+                    report_with_totals.to_excel(
+                        writer, sheet_name="Report", index=False
+                    )
+                    worksheet = writer.sheets["Report"]
+                    _format_worksheet(
+                        worksheet, report_with_totals, output_name
+                    )
+                table_count += 1
+                print(f"  ✓ {output_name}_{timestamp}.xlsx")
+            except Exception as e:
+                print(f"  ✗ {output_name}: {e}", file=sys.stderr)
 
     return table_count
 
@@ -249,7 +295,11 @@ def generate_summary_excel(
 
     # Get month columns from first report (all reports have same structure)
     first_report = next(iter(reports.values()))
-    month_columns = [col for col in first_report.columns if col not in ["category", "indent_level"]]
+    month_columns = [
+        col
+        for col in first_report.columns
+        if col not in ["category", "indent_level"]
+    ]
 
     # Process each report
     for output_name, report_df in reports.items():
@@ -270,13 +320,18 @@ def generate_summary_excel(
             category = row["category"]
             monthly_values = [row[col] for col in month_columns]
             yearly_total = sum(monthly_values)
-            monthly_avg = yearly_total / len(monthly_values) if monthly_values else 0
+            monthly_avg = (
+                yearly_total / len(monthly_values) if monthly_values else 0
+            )
 
             summary_data.append(
                 {
                     "Report": report_title,
                     "Category": category,
-                    **{month_columns[i]: monthly_values[i] for i in range(len(month_columns))},
+                    **{
+                        month_columns[i]: monthly_values[i]
+                        for i in range(len(month_columns))
+                    },
                     "Yearly Total": yearly_total,
                     "Monthly Average": monthly_avg,
                 }
@@ -286,14 +341,22 @@ def generate_summary_excel(
     summary_df = pd.DataFrame(summary_data)
 
     # Reorder columns: Report, Category, months, Yearly Total, Monthly Average
-    column_order = ["Report", "Category"] + month_columns + ["Yearly Total", "Monthly Average"]
+    column_order = (
+        ["Report", "Category"]
+        + month_columns
+        + ["Yearly Total", "Monthly Average"]
+    )
     summary_df = summary_df[column_order]
 
     # Save to Excel
-    excel_path = os.path.join(output_dir, f"expense_summary_{timestamp}.xlsx")
+    excel_path = os.path.join(
+        output_dir, f"expense_summary_{timestamp}.xlsx"
+    )
 
     with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-        summary_df.to_excel(writer, sheet_name="Expense Summary", index=False)
+        summary_df.to_excel(
+            writer, sheet_name="Expense Summary", index=False
+        )
 
         # Get the worksheet to apply formatting
         worksheet = writer.sheets["Expense Summary"]
@@ -309,7 +372,9 @@ def generate_summary_excel(
                 except Exception:
                     pass
             adjusted_width = min(max_length + 2, 50)
-            worksheet.column_dimensions[column_letter].width = adjusted_width
+            worksheet.column_dimensions[
+                column_letter
+            ].width = adjusted_width
 
         # Create formal Excel Table
         from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -334,7 +399,9 @@ def generate_summary_excel(
 
         # Apply accounting number format to expense columns
         # Accounting format: _($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)
-        accounting_format = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
+        accounting_format = (
+            '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
+        )
 
         # Format all columns except 'Report' and 'Category' (columns 1 and 2)
         for col_idx in range(3, num_cols + 1):  # Start from column C (3)
@@ -374,7 +441,11 @@ def generate_summary_pie_chart(
 
     # Get month columns from first report
     first_report = next(iter(reports.values()))
-    month_columns = [col for col in first_report.columns if col not in ["category", "indent_level"]]
+    month_columns = [
+        col
+        for col in first_report.columns
+        if col not in ["category", "indent_level"]
+    ]
 
     # Process each report
     for output_name, report_df in reports.items():
@@ -384,13 +455,19 @@ def generate_summary_pie_chart(
             if group.output_name == output_name:
                 report_title = group.name
                 # For grouped reports, use the Group Total row
-                group_total_row = report_df[report_df["category"] == "Group Total"]
+                group_total_row = report_df[
+                    report_df["category"] == "Group Total"
+                ]
                 if not group_total_row.empty:
                     row = group_total_row.iloc[0]
-                    monthly_values = [abs(row[col]) for col in month_columns]
+                    monthly_values = [
+                        abs(row[col]) for col in month_columns
+                    ]
                     monthly_avg = sum(monthly_values) / len(monthly_values)
                     if monthly_avg > 0:  # Only include if there's spending
-                        chart_data.append({"label": report_title, "value": monthly_avg})
+                        chart_data.append(
+                            {"label": report_title, "value": monthly_avg}
+                        )
                 break
 
         if not report_title:
@@ -399,10 +476,14 @@ def generate_summary_pie_chart(
                 if individual.output_name == output_name:
                     report_title = individual.name
                     row = report_df.iloc[0]
-                    monthly_values = [abs(row[col]) for col in month_columns]
+                    monthly_values = [
+                        abs(row[col]) for col in month_columns
+                    ]
                     monthly_avg = sum(monthly_values) / len(monthly_values)
                     if monthly_avg > 0:  # Only include if there's spending
-                        chart_data.append({"label": report_title, "value": monthly_avg})
+                        chart_data.append(
+                            {"label": report_title, "value": monthly_avg}
+                        )
                     break
 
     # Sort by value descending
@@ -420,7 +501,9 @@ def generate_summary_pie_chart(
     wedges, texts, autotexts = ax.pie(
         values,
         labels=labels,
-        autopct=lambda pct: f"${pct * sum(values) / 100:.0f}\n({pct:.1f}%)",
+        autopct=lambda pct: (
+            f"${pct * sum(values) / 100:.0f}\n({pct:.1f}%)"
+        ),
         startangle=90,
         colors=colors,
         textprops={"fontsize": 9},
@@ -444,7 +527,9 @@ def generate_summary_pie_chart(
     ax.axis("equal")
 
     # Save chart
-    chart_path = os.path.join(output_dir, f"expense_summary_pie_{timestamp}.png")
+    chart_path = os.path.join(
+        output_dir, f"expense_summary_pie_{timestamp}.png"
+    )
     plt.tight_layout()
     plt.savefig(chart_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -460,6 +545,9 @@ def main(
     specific_reports: Optional[List[str]] = None,
     summary_excel: bool = False,
     verbose: bool = False,
+    combined_tables: bool = False,
+    separate_tables: bool = False,
+    table_format: Optional[str] = None,
 ) -> int:
     """
     Main orchestration function for report generation.
@@ -529,7 +617,9 @@ def main(
             # Already parsed
             df = pd.read_csv(input_csv)
             if verbose:
-                print(f"    Loaded {len(df)} expense categories (pre-parsed)")
+                print(
+                    f"    Loaded {len(df)} expense categories (pre-parsed)"
+                )
         else:
             # Raw Quicken export
             df = parse_quicken_csv(input_csv, verbose=verbose)
@@ -546,15 +636,27 @@ def main(
 
         if specific_reports:
             # Filter to requested reports
-            reports = {k: v for k, v in reports.items() if k in specific_reports}
+            reports = {
+                k: v for k, v in reports.items() if k in specific_reports
+            }
             if not reports:
-                print(f"Error: None of the specified reports found: {specific_reports}")
+                print(
+                    f"Error: None of the specified reports found: {specific_reports}"
+                )
                 return 1
 
         print(f"    Created {len(reports)} report(s)")
 
         # Step 4: Generate outputs
         output_settings = config.get_output_settings()
+        # CLI overrides
+        if table_format:
+            output_settings.table_format = table_format
+        if combined_tables:
+            output_settings.combined_tables = True
+            output_settings.table_format = "xlsx"
+        if separate_tables:
+            output_settings.combined_tables = False
         base_dir = output_settings.base_dir
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -567,8 +669,12 @@ def main(
         if not tables_only:
             print("\n[4] Generating charts...")
             charts_dir = os.path.join(base_dir, "charts")
-            generated_charts = generate_charts(reports, config, charts_dir, specific_reports)
-            print(f"    Generated {generated_charts} chart(s) in {charts_dir}/")
+            generated_charts = generate_charts(
+                reports, config, charts_dir, specific_reports
+            )
+            print(
+                f"    Generated {generated_charts} chart(s) in {charts_dir}/"
+            )
 
         # Generate tables
         if not charts_only:
@@ -577,16 +683,22 @@ def main(
             generated_tables = generate_tables(
                 reports, config, tables_dir, timestamp, specific_reports
             )
-            print(f"    Generated {generated_tables} table(s) in {tables_dir}/")
+            print(
+                f"    Generated {generated_tables} table(s) in {tables_dir}/"
+            )
 
         # Generate Excel summary
         if summary_excel:
             print("\n[6] Generating Excel summary...")
-            excel_summary_path = generate_summary_excel(reports, config, base_dir, timestamp)
+            excel_summary_path = generate_summary_excel(
+                reports, config, base_dir, timestamp
+            )
             print(f"    ✓ {os.path.basename(excel_summary_path)}")
 
             # Generate pie chart
-            pie_chart_path = generate_summary_pie_chart(reports, config, base_dir, timestamp)
+            pie_chart_path = generate_summary_pie_chart(
+                reports, config, base_dir, timestamp
+            )
             print(f"    ✓ {os.path.basename(pie_chart_path)}")
 
         # Summary
@@ -601,7 +713,9 @@ def main(
         if not charts_only:
             print(f"Tables:         {generated_tables}")
         if summary_excel:
-            print(f"Excel Summary:  {os.path.basename(excel_summary_path)}")
+            print(
+                f"Excel Summary:  {os.path.basename(excel_summary_path)}"
+            )
             print(f"Pie Chart:      {os.path.basename(pie_chart_path)}")
         print(f"Output:         {base_dir}/")
         print("=" * 70)
@@ -614,7 +728,9 @@ def main(
         print(f"Error: File not found - {e}", file=sys.stderr)
         return 1
     except ValueError as e:
-        print(f"Error: Invalid configuration or data - {e}", file=sys.stderr)
+        print(
+            f"Error: Invalid configuration or data - {e}", file=sys.stderr
+        )
         return 1
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -696,6 +812,24 @@ Examples:
     )
 
     parser.add_argument(
+        "--table-format",
+        choices=["csv", "xlsx", "html"],
+        help="Override table format from config (default from YAML)",
+    )
+
+    parser.add_argument(
+        "--combined-tables",
+        action="store_true",
+        help="When writing xlsx tables, put all reports in one workbook",
+    )
+
+    parser.add_argument(
+        "--separate-tables",
+        action="store_true",
+        help="Force one file per report even if format is xlsx",
+    )
+
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -704,9 +838,13 @@ Examples:
 
     args = parser.parse_args()
 
-    # Validate arguments
+    # Validate mutually exclusive arguments
     if args.charts_only and args.tables_only:
         parser.error("Cannot specify both --charts-only and --tables-only")
+    if args.combined_tables and args.separate_tables:
+        parser.error(
+            "Cannot specify both --combined-tables and --separate-tables"
+        )
 
     # Parse specific reports if provided
     specific_reports = None
@@ -722,6 +860,9 @@ Examples:
         specific_reports=specific_reports,
         summary_excel=args.summary_excel,
         verbose=args.verbose,
+        combined_tables=args.combined_tables,
+        separate_tables=args.separate_tables,
+        table_format=args.table_format,
     )
 
     sys.exit(exit_code)

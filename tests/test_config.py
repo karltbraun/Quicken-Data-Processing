@@ -57,7 +57,9 @@ def main():
     print(f"  Show markers: {display.chart_defaults.show_markers}")
     print(f"  Line width: {display.chart_defaults.line_width}")
     print(f"  Average type: {display.chart_defaults.average_type}")
-    print(f"  Average line style: {display.chart_defaults.average_line_style}")
+    print(
+        f"  Average line style: {display.chart_defaults.average_line_style}"
+    )
 
     # Output settings
     print("\n[5] Output Settings")
@@ -66,6 +68,7 @@ def main():
     print(f"Base directory: {output.base_dir}")
     print(f"Chart format: {output.chart_format}")
     print(f"Table format: {output.table_format}")
+    print(f"Combined tables: {getattr(output, 'combined_tables', False)}")
     print(f"Create summary: {output.create_summary}")
 
     # Error handling

@@ -39,7 +39,7 @@ ruff format --check .
 
 ### Module Structure
 
-``` text
+```text
 quicken_parser/
 ├── __init__.py            # Package exports
 ├── config.py              # Configuration management (YAML)
@@ -53,7 +53,7 @@ quicken_parser/
 
 ### Data Flow
 
-``` text
+```text
 1. Raw Quicken CSV (Income/Expense or Cash Flow format)
    ↓
 2. csv_parser.py → DataFrame (all categories, monthly values)
@@ -86,7 +86,7 @@ report_groups:
       - "Other Cell Phone Exp - FAM"
       - "Reimb Cell Phones - FAM"
     include_group_total: true
-    
+
   - name: "Medicare Expenses - KTB"
     output_name: "medicare_ktb"
     categories:
@@ -96,7 +96,7 @@ report_groups:
       - "Regular Part D - KTB"
       - "Supplemental Part G - KTB"
     include_group_total: true
-    
+
   - name: "Utilities"
     output_name: "utilities"
     categories:
@@ -115,40 +115,42 @@ individual_reports:
 display_settings:
   colors:
     palette:
-      - "#1f77b4"  # [web:0] Blue
-      - "#ff7f0e"  # [web:1] Orange
-      - "#2ca02c"  # [web:2] Green
-      - "#d62728"  # [web:3] Red
-      - "#9467bd"  # [web:4] Purple
-      - "#8c564b"  # [web:5] Brown
-      - "#e377c2"  # [web:6] Pink
-      - "#7f7f7f"  # [web:7] Gray
-      - "#bcbd22"  # [web:8] Olive
-      - "#17becf"  # [web:9] Cyan
-      - "#aec7e8"  # [web:10] Light Blue
-      - "#ffbb78"  # [web:11] Light Orange
-      - "#98df8a"  # [web:12] Light Green
-      - "#ff9896"  # [web:13] Light Red
-      - "#c5b0d5"  # [web:14] Light Purple
-    group_total_color: "#000000"  # Black
-  
+      - "#1f77b4" # [web:0] Blue
+      - "#ff7f0e" # [web:1] Orange
+      - "#2ca02c" # [web:2] Green
+      - "#d62728" # [web:3] Red
+      - "#9467bd" # [web:4] Purple
+      - "#8c564b" # [web:5] Brown
+      - "#e377c2" # [web:6] Pink
+      - "#7f7f7f" # [web:7] Gray
+      - "#bcbd22" # [web:8] Olive
+      - "#17becf" # [web:9] Cyan
+      - "#aec7e8" # [web:10] Light Blue
+      - "#ffbb78" # [web:11] Light Orange
+      - "#98df8a" # [web:12] Light Green
+      - "#ff9896" # [web:13] Light Red
+      - "#c5b0d5" # [web:14] Light Purple
+    group_total_color: "#000000" # Black
+
   chart_defaults:
     figsize: [14, 8]
     show_markers: true
     line_width: 2
     average_line_style: "dashed"
-    average_type: "expanding"  # "expanding" = cumulative from month 1; "rolling" = fixed window
+    average_type: "expanding" # "expanding" = cumulative from month 1; "rolling" = fixed window
     # rolling_window: 3  # Only used when average_type is "rolling"
 
 output_settings:
   base_dir: "./reports"
   chart_format: "png"
-  table_format: "csv"  # or "xlsx", "html"
+  table_format: "csv" # or "xlsx", "html"
+  # combined_tables defaults to true when format is xlsx; set to false to get
+  # separate files instead
   create_summary: true
 
 error_handling:
-  missing_categories: "fill_zero"  # or "skip", "error"
-  partial_groups: "include"  # or "skip", "error"
+  missing_categories: "fill_zero" # or "skip", "error"
+  partial_groups: "include" # or "skip", "error"
 ```
 
 ## Module Specifications
@@ -166,7 +168,7 @@ error_handling:
 
 **Implementation:**
 
-``` python
+```python
 @dataclass
 class ReportGroup:
     output_name: str
@@ -184,7 +186,7 @@ class ReportConfig:
     individual_reports: List[IndividualReport]
     display_settings: DisplaySettings
     error_handling: ErrorHandling
-    
+
     @classmethod
     def from_yaml(cls, path: str) -> 'ReportConfig':
         """Load and validate config from YAML file."""
@@ -223,7 +225,7 @@ class QuickenCSVParser:
     def parse(self, file_path: str, verbose: bool = False) -> pd.DataFrame:
         """
         Parse Quicken CSV export.
-        
+
         Section detection:
         - Looks for exact match: col == "Income" or col == "Expenses"
         - Also handles: col == "Inflows" or col == "Outflows"
@@ -268,12 +270,12 @@ def parse_quicken_csv(file_path: str, verbose: bool = False) -> pd.DataFrame:
 
 ```python
 def create_report_groups(
-    df: pd.DataFrame, 
+    df: pd.DataFrame,
     config: ReportConfig
 ) -> Dict[str, pd.DataFrame]:
     """
     Create grouped DataFrames for each report.
-    
+
     Returns:
         Dict mapping output_name -> DataFrame ready for charting/reporting
     """
@@ -287,14 +289,14 @@ def add_group_total(df: pd.DataFrame, month_columns: List[str]) -> pd.DataFrame:
     # Implemented
 
 def get_or_fill_category(
-    df: pd.DataFrame, 
-    category: str, 
+    df: pd.DataFrame,
+    category: str,
     month_columns: List[str],
     error_mode: str = "fill_zero"
 ) -> pd.Series:
     """
     Get category data or return zeros if missing.
-    
+
     Error modes:
     - fill_zero: Return zeros for missing categories
     - skip: Return None (category skipped)
@@ -336,7 +338,7 @@ def generate_charts(
 ) -> None:
     """
     Generate line charts for all report groups.
-    
+
     Features:
     - Solid lines for actual monthly expenses
     - Dashed lines for expanding cumulative averages
@@ -366,10 +368,10 @@ def generate_tables(
 ) -> None:
     """
     Generate timestamped CSV tables.
-    
+
     Output format: {output_name}_{YYYYMMDD_HHMMSS}.csv
     Example: groceries_20250121_143022.csv
-    
+
     Each table contains:
     - category column
     - Monthly expense columns
@@ -442,16 +444,13 @@ def cli() -> None:
 - **Missing categories**: Fill with $0 (default), skip, or error
 - **Section detection**: Exact matching prevents false positives
 - **"Other" section**: Parser stops to avoid extraneous data
-- **Invalid config**: Dataclass validation with clear messages
-    4. Generate charts
-    5. Generate tables
-    6. Print summary
+- **Invalid config**: Dataclass validation with clear messages 4. Generate charts 5. Generate tables 6. Print summary
 
 ### Testing Strategy
 
 **Implemented tests:**
 
-``` text
+```text
 tests/
 ├── test_config.py          # Config loading and validation - ✅
 ├── test_csv_parser.py      # CSV parsing - ✅

@@ -5,12 +5,13 @@ Tests the full flow: Config → Parse → Group → Chart
 """
 
 import os
-import pandas as pd
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from quicken_parser.charts import plot_monthly_trends
 from quicken_parser.config import ReportConfig
 from quicken_parser.processors import create_report_groups
-from quicken_parser.charts import plot_monthly_trends
 
 
 def main():
@@ -90,6 +91,24 @@ def main():
     print(f"Charts generated:  {chart_count}")
     print(f"Output directory:  {output_dir}/")
 
+    # quick check: default is combined workbook when table_format is xlsx
+    print("\n[Step 5b] verify default combined workbook generation")
+    cfg2 = ReportConfig("./reports_config.yaml")
+    cfg2.output_settings.table_format = "xlsx"
+    # do not set combined_tables (defaults to True)
+    count2 = generate_tables(reports, cfg2, output_dir, "test_ts")
+    assert count2 == 1
+    assert os.path.exists(
+        os.path.join(output_dir, "all_reports_test_ts.xlsx")
+    )
+
+    # disabling via config should fall back to multiple files
+    cfg3 = ReportConfig("./reports_config.yaml")
+    cfg3.output_settings.table_format = "xlsx"
+    cfg3.output_settings.combined_tables = False
+    count3 = generate_tables(reports, cfg3, output_dir, "test_ts2")
+    assert count3 == len(reports)
+
     print("\n" + "=" * 70)
     print("✓ END-TO-END TEST COMPLETED SUCCESSFULLY!")
     print("=" * 70)
@@ -104,4 +123,5 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
     main()

@@ -3,9 +3,8 @@
 Parse Quicken expense reports from CSV exports and generate financial analysis charts and tables.
 
 > **Note:**
-> This project was mostly vibe-coded.  The current version is functional but may contain rough edges.  Current objective is to 
+> This project was mostly vibe-coded. The current version is functional but may contain rough edges. Current objective is to
 > review and refine but the current code base will give you reasonable functionality for parsing Quicken CSV exports and generating reports.
-
 
 ## Overview
 
@@ -97,6 +96,28 @@ quicken-report --config reports_config.yaml --input data/Expenses-20250101-20251
 
 This will generate charts and tables in the `./reports/` directory.
 
+By default the tool writes a **single Excel workbook** when
+`table_format` is set to `xlsx` (the `combined_tables` option defaults to
+`true`). If you prefer separate files you can disable it in the config or
+on the command line.
+
+Example YAML snippet:
+
+```yaml
+output_settings:
+  table_format: "xlsx" # csv (default), xlsx, or html
+  combined_tables: false # optional; only needed to override the default
+```
+
+Command-line overrides:
+
+```bash
+quicken-report --config reports_config.yaml \
+               --input data/expenses.csv \
+               --table-format xlsx        # change format
+               --separate-tables          # explicitly ask for separate files
+```
+
 ## Usage
 
 ### Exporting from Quicken
@@ -128,7 +149,7 @@ report_groups:
     title: "Groceries Monthly Expenses"
     categories:
       - "510 Groceries"
-  
+
   - output_name: "utilities"
     title: "Utilities (Electric, Gas, Water)"
     categories:
@@ -138,10 +159,10 @@ report_groups:
 
 display_settings:
   colors:
-    - "#1f77b4"  # Blue
-    - "#ff7f0e"  # Orange
+    - "#1f77b4" # Blue
+    - "#ff7f0e" # Orange
     # ... (15 colors total)
-  group_total_color: "#000000"  # Black for totals
+  group_total_color: "#000000" # Black for totals
 ```
 
 See the included `reports_config.yaml` for a complete example.
@@ -178,11 +199,13 @@ uv run python test_e2e.py
 Running `quicken-report` creates:
 
 **Charts** (in `./reports/charts/`):
+
 - Line charts for each report group
 - PNG format with configurable dimensions
 - Expanding cumulative averages (dashed lines)
 
 **Tables** (in `./reports/`):
+
 - Timestamped CSV files (e.g., `groceries_20250121_143022.csv`)
 - One table per report group
 - Monthly breakdowns with category totals
