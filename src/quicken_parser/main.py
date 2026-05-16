@@ -20,6 +20,7 @@ Version: 1.0
 
 import argparse
 import os
+import re
 import sys
 from datetime import datetime
 from typing import List, Optional
@@ -31,6 +32,81 @@ from quicken_parser.charts import plot_monthly_trends
 from quicken_parser.config import ReportConfig
 from quicken_parser.csv_parser import parse_quicken_csv
 from quicken_parser.processors import create_report_groups
+
+
+def parse_add_group(raw: str) -> "ReportGroup":
+    """Parse a --add-group spec string into a ReportGroup.
+
+    Format: "name=My Group,categories=Cat A;Cat B;Cat C"
+    Commas separate key=value pairs; semicolons separate category names.
+    """
+    from quicken_parser.config import ReportGroup
+
+    parts: dict[str, str] = {}
+    current_key: Optional[str] = None
+    current_value_parts: List[str] = []
+
+    for token in raw.split(","):
+        if "=" in token:
+            if current_key is not None:
+                parts[current_key] = ",".join(current_value_parts)
+            current_key, _, val = token.partition("=")
+            current_key = current_key.strip()
+            current_value_parts = [val]
+        else:
+            current_value_parts.append(token)
+
+    if current_key is not None:
+        parts[current_key] = ",".join(current_value_parts)
+
+    if "name" not in parts:
+        raise ValueError(f"--add-group missing 'name' key: {raw!r}")
+    if "categories" not in parts:
+        raise ValueError(f"--add-group missing 'categories' key: {raw!r}")
+
+    name = parts["name"].strip()
+    categories = [c.strip() for c in parts["categories"].split(";") if c.strip()]
+    if not categories:
+        raise ValueError(f"--add-group 'categories' is empty: {raw!r}")
+
+    output_name = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    return ReportGroup(name=name, output_name=output_name, categories=categories)
+
+
+def filter_date_range(df: "pd.DataFrame", date_range: str) -> "pd.DataFrame":
+    """Return df with month columns restricted to YYYY-MM:YYYY-MM (inclusive).
+
+    Month columns are expected to look like "1/1/25 - 1/31/25".
+    Non-date columns (category, indent_level, etc.) are always kept.
+    """
+    _META = {"category", "indent_level", "total", "monthly_average"}
+
+    try:
+        start_str, end_str = date_range.split(":", 1)
+        start = datetime.strptime(start_str.strip(), "%Y-%m")
+        end = datetime.strptime(end_str.strip(), "%Y-%m")
+    except ValueError:
+        raise ValueError(f"Invalid --date-range {date_range!r}. Expected YYYY-MM:YYYY-MM")
+
+    if start > end:
+        raise ValueError(
+            f"--date-range start {start_str.strip()!r} is after end {end_str.strip()!r}"
+        )
+
+    keep: List[str] = []
+    for col in df.columns:
+        if col in _META:
+            keep.append(col)
+            continue
+        try:
+            col_start = col.split(" - ")[0].strip()
+            col_date = datetime.strptime(col_start, "%m/%d/%y").replace(day=1)
+            if start <= col_date <= end:
+                keep.append(col)
+        except (ValueError, IndexError):
+            keep.append(col)
+
+    return df[keep]
 
 
 def generate_charts(
@@ -97,9 +173,7 @@ def generate_charts(
 # helper used by both single‑file and combined workflows
 
 
-def _format_worksheet(
-    worksheet, df: pd.DataFrame, output_name: str
-) -> None:
+def _format_worksheet(worksheet, df: pd.DataFrame, output_name: str) -> None:
     """Apply column widths, table style, and number formatting to *worksheet*.
 
     ``df`` has already been arranged with totals and averages.
@@ -137,9 +211,7 @@ def _format_worksheet(
     worksheet.add_table(table)
 
     # Format numeric columns (all except first two)
-    accounting_format = (
-        '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
-    )
+    accounting_format = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
     for col_idx in range(3, num_cols + 1):
         for row_idx in range(2, num_rows + 2):
             cell = worksheet.cell(row=row_idx, column=col_idx)
@@ -180,10 +252,7 @@ def generate_tables(
     table_count = 0
 
     output_settings = config.get_output_settings()
-    combine = (
-        output_settings.table_format == "xlsx"
-        and output_settings.combined_tables
-    )
+    combine = output_settings.table_format == "xlsx" and output_settings.combined_tables
 
     # helper for computing the embellished DataFrame
     def prepare(df: pd.DataFrame) -> pd.DataFrame:
@@ -191,45 +260,25 @@ def generate_tables(
         # some dataframes (e.g. minimal tests) don't include indent_level
         if "indent_level" not in copy.columns:
             copy["indent_level"] = 0
-        months = [
-            col
-            for col in copy.columns
-            if col not in ["category", "indent_level"]
-        ]
+        months = [col for col in copy.columns if col not in ["category", "indent_level"]]
         copy["Yearly Total"] = copy[months].sum(axis=1)
         copy["Monthly Average"] = copy["Yearly Total"] / len(months)
-        order = (
-            ["category", "indent_level"]
-            + months
-            + ["Yearly Total", "Monthly Average"]
-        )
+        order = ["category", "indent_level"] + months + ["Yearly Total", "Monthly Average"]
         return copy[order]
 
     if combine:
-        save_path = os.path.join(
-            output_dir, f"all_reports_{timestamp}.xlsx"
-        )
+        save_path = os.path.join(output_dir, f"all_reports_{timestamp}.xlsx")
         with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
             for output_name, report_df in reports.items():
-                if (
-                    specific_reports
-                    and output_name not in specific_reports
-                ):
+                if specific_reports and output_name not in specific_reports:
                     continue
                 report_with_totals = prepare(report_df)
-                report_with_totals.to_excel(
-                    writer, sheet_name=output_name, index=False
-                )
+                report_with_totals.to_excel(writer, sheet_name=output_name, index=False)
                 worksheet = writer.sheets[output_name]
-                _format_worksheet(
-                    worksheet, report_with_totals, output_name
-                )
+                _format_worksheet(worksheet, report_with_totals, output_name)
         table_count = (
             1
-            if any(
-                (not specific_reports) or (name in specific_reports)
-                for name in reports
-            )
+            if any((not specific_reports) or (name in specific_reports) for name in reports)
             else 0
         )
         if table_count:
@@ -239,20 +288,12 @@ def generate_tables(
             if specific_reports and output_name not in specific_reports:
                 continue
             report_with_totals = prepare(report_df)
-            save_path = os.path.join(
-                output_dir, f"{output_name}_{timestamp}.xlsx"
-            )
+            save_path = os.path.join(output_dir, f"{output_name}_{timestamp}.xlsx")
             try:
-                with pd.ExcelWriter(
-                    save_path, engine="openpyxl"
-                ) as writer:
-                    report_with_totals.to_excel(
-                        writer, sheet_name="Report", index=False
-                    )
+                with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
+                    report_with_totals.to_excel(writer, sheet_name="Report", index=False)
                     worksheet = writer.sheets["Report"]
-                    _format_worksheet(
-                        worksheet, report_with_totals, output_name
-                    )
+                    _format_worksheet(worksheet, report_with_totals, output_name)
                 table_count += 1
                 print(f"  ✓ {output_name}_{timestamp}.xlsx")
             except Exception as e:
@@ -295,11 +336,7 @@ def generate_summary_excel(
 
     # Get month columns from first report (all reports have same structure)
     first_report = next(iter(reports.values()))
-    month_columns = [
-        col
-        for col in first_report.columns
-        if col not in ["category", "indent_level"]
-    ]
+    month_columns = [col for col in first_report.columns if col not in ["category", "indent_level"]]
 
     # Process each report
     for output_name, report_df in reports.items():
@@ -320,18 +357,13 @@ def generate_summary_excel(
             category = row["category"]
             monthly_values = [row[col] for col in month_columns]
             yearly_total = sum(monthly_values)
-            monthly_avg = (
-                yearly_total / len(monthly_values) if monthly_values else 0
-            )
+            monthly_avg = yearly_total / len(monthly_values) if monthly_values else 0
 
             summary_data.append(
                 {
                     "Report": report_title,
                     "Category": category,
-                    **{
-                        month_columns[i]: monthly_values[i]
-                        for i in range(len(month_columns))
-                    },
+                    **{month_columns[i]: monthly_values[i] for i in range(len(month_columns))},
                     "Yearly Total": yearly_total,
                     "Monthly Average": monthly_avg,
                 }
@@ -341,22 +373,14 @@ def generate_summary_excel(
     summary_df = pd.DataFrame(summary_data)
 
     # Reorder columns: Report, Category, months, Yearly Total, Monthly Average
-    column_order = (
-        ["Report", "Category"]
-        + month_columns
-        + ["Yearly Total", "Monthly Average"]
-    )
+    column_order = ["Report", "Category"] + month_columns + ["Yearly Total", "Monthly Average"]
     summary_df = summary_df[column_order]
 
     # Save to Excel
-    excel_path = os.path.join(
-        output_dir, f"expense_summary_{timestamp}.xlsx"
-    )
+    excel_path = os.path.join(output_dir, f"expense_summary_{timestamp}.xlsx")
 
     with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-        summary_df.to_excel(
-            writer, sheet_name="Expense Summary", index=False
-        )
+        summary_df.to_excel(writer, sheet_name="Expense Summary", index=False)
 
         # Get the worksheet to apply formatting
         worksheet = writer.sheets["Expense Summary"]
@@ -372,9 +396,7 @@ def generate_summary_excel(
                 except Exception:
                     pass
             adjusted_width = min(max_length + 2, 50)
-            worksheet.column_dimensions[
-                column_letter
-            ].width = adjusted_width
+            worksheet.column_dimensions[column_letter].width = adjusted_width
 
         # Create formal Excel Table
         from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -399,9 +421,7 @@ def generate_summary_excel(
 
         # Apply accounting number format to expense columns
         # Accounting format: _($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)
-        accounting_format = (
-            '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
-        )
+        accounting_format = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
 
         # Format all columns except 'Report' and 'Category' (columns 1 and 2)
         for col_idx in range(3, num_cols + 1):  # Start from column C (3)
@@ -441,11 +461,7 @@ def generate_summary_pie_chart(
 
     # Get month columns from first report
     first_report = next(iter(reports.values()))
-    month_columns = [
-        col
-        for col in first_report.columns
-        if col not in ["category", "indent_level"]
-    ]
+    month_columns = [col for col in first_report.columns if col not in ["category", "indent_level"]]
 
     # Process each report
     for output_name, report_df in reports.items():
@@ -455,19 +471,13 @@ def generate_summary_pie_chart(
             if group.output_name == output_name:
                 report_title = group.name
                 # For grouped reports, use the Group Total row
-                group_total_row = report_df[
-                    report_df["category"] == "Group Total"
-                ]
+                group_total_row = report_df[report_df["category"] == "Group Total"]
                 if not group_total_row.empty:
                     row = group_total_row.iloc[0]
-                    monthly_values = [
-                        abs(row[col]) for col in month_columns
-                    ]
+                    monthly_values = [abs(row[col]) for col in month_columns]
                     monthly_avg = sum(monthly_values) / len(monthly_values)
                     if monthly_avg > 0:  # Only include if there's spending
-                        chart_data.append(
-                            {"label": report_title, "value": monthly_avg}
-                        )
+                        chart_data.append({"label": report_title, "value": monthly_avg})
                 break
 
         if not report_title:
@@ -476,14 +486,10 @@ def generate_summary_pie_chart(
                 if individual.output_name == output_name:
                     report_title = individual.name
                     row = report_df.iloc[0]
-                    monthly_values = [
-                        abs(row[col]) for col in month_columns
-                    ]
+                    monthly_values = [abs(row[col]) for col in month_columns]
                     monthly_avg = sum(monthly_values) / len(monthly_values)
                     if monthly_avg > 0:  # Only include if there's spending
-                        chart_data.append(
-                            {"label": report_title, "value": monthly_avg}
-                        )
+                        chart_data.append({"label": report_title, "value": monthly_avg})
                     break
 
     # Sort by value descending
@@ -501,9 +507,7 @@ def generate_summary_pie_chart(
     wedges, texts, autotexts = ax.pie(
         values,
         labels=labels,
-        autopct=lambda pct: (
-            f"${pct * sum(values) / 100:.0f}\n({pct:.1f}%)"
-        ),
+        autopct=lambda pct: (f"${pct * sum(values) / 100:.0f}\n({pct:.1f}%)"),
         startangle=90,
         colors=colors,
         textprops={"fontsize": 9},
@@ -527,9 +531,7 @@ def generate_summary_pie_chart(
     ax.axis("equal")
 
     # Save chart
-    chart_path = os.path.join(
-        output_dir, f"expense_summary_pie_{timestamp}.png"
-    )
+    chart_path = os.path.join(output_dir, f"expense_summary_pie_{timestamp}.png")
     plt.tight_layout()
     plt.savefig(chart_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -548,6 +550,9 @@ def main(
     combined_tables: bool = False,
     separate_tables: bool = False,
     table_format: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    add_groups: Optional[List[str]] = None,
+    date_range: Optional[str] = None,
 ) -> int:
     """
     Main orchestration function for report generation.
@@ -596,6 +601,9 @@ def main(
             print("\n[1] Loading configuration...")
 
         config = ReportConfig(config_path)
+        if add_groups:
+            for raw in add_groups:
+                config._report_groups.append(parse_add_group(raw))
         if verbose:
             print(
                 f"    Reports: {len(config.get_report_groups())} groups, "
@@ -617,14 +625,15 @@ def main(
             # Already parsed
             df = pd.read_csv(input_csv)
             if verbose:
-                print(
-                    f"    Loaded {len(df)} expense categories (pre-parsed)"
-                )
+                print(f"    Loaded {len(df)} expense categories (pre-parsed)")
         else:
             # Raw Quicken export
             df = parse_quicken_csv(input_csv, verbose=verbose)
             if verbose:
                 print(f"    Parsed {len(df)} expense categories")
+
+        if date_range:
+            df = filter_date_range(df, date_range)
 
         # Step 3: Create report groups
         if verbose:
@@ -636,13 +645,9 @@ def main(
 
         if specific_reports:
             # Filter to requested reports
-            reports = {
-                k: v for k, v in reports.items() if k in specific_reports
-            }
+            reports = {k: v for k, v in reports.items() if k in specific_reports}
             if not reports:
-                print(
-                    f"Error: None of the specified reports found: {specific_reports}"
-                )
+                print(f"Error: None of the specified reports found: {specific_reports}")
                 return 1
 
         print(f"    Created {len(reports)} report(s)")
@@ -650,6 +655,8 @@ def main(
         # Step 4: Generate outputs
         output_settings = config.get_output_settings()
         # CLI overrides
+        if output_dir:
+            output_settings.base_dir = output_dir
         if table_format:
             output_settings.table_format = table_format
         if combined_tables:
@@ -669,12 +676,8 @@ def main(
         if not tables_only:
             print("\n[4] Generating charts...")
             charts_dir = os.path.join(base_dir, "charts")
-            generated_charts = generate_charts(
-                reports, config, charts_dir, specific_reports
-            )
-            print(
-                f"    Generated {generated_charts} chart(s) in {charts_dir}/"
-            )
+            generated_charts = generate_charts(reports, config, charts_dir, specific_reports)
+            print(f"    Generated {generated_charts} chart(s) in {charts_dir}/")
 
         # Generate tables
         if not charts_only:
@@ -683,22 +686,16 @@ def main(
             generated_tables = generate_tables(
                 reports, config, tables_dir, timestamp, specific_reports
             )
-            print(
-                f"    Generated {generated_tables} table(s) in {tables_dir}/"
-            )
+            print(f"    Generated {generated_tables} table(s) in {tables_dir}/")
 
         # Generate Excel summary
         if summary_excel:
             print("\n[6] Generating Excel summary...")
-            excel_summary_path = generate_summary_excel(
-                reports, config, base_dir, timestamp
-            )
+            excel_summary_path = generate_summary_excel(reports, config, base_dir, timestamp)
             print(f"    ✓ {os.path.basename(excel_summary_path)}")
 
             # Generate pie chart
-            pie_chart_path = generate_summary_pie_chart(
-                reports, config, base_dir, timestamp
-            )
+            pie_chart_path = generate_summary_pie_chart(reports, config, base_dir, timestamp)
             print(f"    ✓ {os.path.basename(pie_chart_path)}")
 
         # Summary
@@ -713,9 +710,7 @@ def main(
         if not charts_only:
             print(f"Tables:         {generated_tables}")
         if summary_excel:
-            print(
-                f"Excel Summary:  {os.path.basename(excel_summary_path)}"
-            )
+            print(f"Excel Summary:  {os.path.basename(excel_summary_path)}")
             print(f"Pie Chart:      {os.path.basename(pie_chart_path)}")
         print(f"Output:         {base_dir}/")
         print("=" * 70)
@@ -728,9 +723,7 @@ def main(
         print(f"Error: File not found - {e}", file=sys.stderr)
         return 1
     except ValueError as e:
-        print(
-            f"Error: Invalid configuration or data - {e}", file=sys.stderr
-        )
+        print(f"Error: Invalid configuration or data - {e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -830,6 +823,30 @@ Examples:
     )
 
     parser.add_argument(
+        "--output",
+        dest="output_dir",
+        metavar="DIR",
+        help="Override base output directory from config",
+    )
+
+    parser.add_argument(
+        "--add-group",
+        dest="add_groups",
+        action="append",
+        metavar="SPEC",
+        help=(
+            'Add an ad-hoc report group: "name=My Group,categories=Cat A;Cat B". '
+            "May be repeated for multiple groups."
+        ),
+    )
+
+    parser.add_argument(
+        "--date-range",
+        metavar="YYYY-MM:YYYY-MM",
+        help="Restrict output to months within this range (inclusive)",
+    )
+
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -842,9 +859,7 @@ Examples:
     if args.charts_only and args.tables_only:
         parser.error("Cannot specify both --charts-only and --tables-only")
     if args.combined_tables and args.separate_tables:
-        parser.error(
-            "Cannot specify both --combined-tables and --separate-tables"
-        )
+        parser.error("Cannot specify both --combined-tables and --separate-tables")
 
     # Parse specific reports if provided
     specific_reports = None
@@ -863,6 +878,9 @@ Examples:
         combined_tables=args.combined_tables,
         separate_tables=args.separate_tables,
         table_format=args.table_format,
+        output_dir=args.output_dir,
+        add_groups=args.add_groups,
+        date_range=args.date_range,
     )
 
     sys.exit(exit_code)

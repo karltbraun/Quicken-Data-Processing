@@ -98,9 +98,7 @@ def main():
     # do not set combined_tables (defaults to True)
     count2 = generate_tables(reports, cfg2, output_dir, "test_ts")
     assert count2 == 1
-    assert os.path.exists(
-        os.path.join(output_dir, "all_reports_test_ts.xlsx")
-    )
+    assert os.path.exists(os.path.join(output_dir, "all_reports_test_ts.xlsx"))
 
     # disabling via config should fall back to multiple files
     cfg3 = ReportConfig("./reports_config.yaml")
