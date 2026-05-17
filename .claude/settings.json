@@ -4,7 +4,9 @@
       "Bash(PYTHONPATH=src uv run pytest -o \"addopts=\" tests/test_csv_parser_inflows.py tests/test_budget.py tests/test_cli_flags.py -v)",
       "Bash(uv run *)",
       "Bash(PYTHONPATH=src uv run pytest -o \"addopts=\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git checkout *)",
+      "Bash(git merge --no-ff project/parser-inflows-init -m ' *)"
     ]
   }
 }
