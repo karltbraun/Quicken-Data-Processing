@@ -312,6 +312,8 @@ class QuickenCSVParser:
                     "category": category,
                     "indent_level": indent_level,
                 }
+                if self.include_inflows:
+                    record["section"] = "income" if in_inflows else "expense"
 
                 # Map values to date columns
                 for date_col, value in zip(date_columns, values):

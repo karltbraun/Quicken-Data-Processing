@@ -4,14 +4,3 @@ budget_prep:
   months: 3
   recurring_min_months: 3
   recurring_cv_threshold: 0.35
-  income_keywords:
-    - salary
-    - income
-    - paycheck
-    - bonus
-    - dividend
-    - interest
-    - refund
-    - reimbursement
-    - deposit
-    - transfer in

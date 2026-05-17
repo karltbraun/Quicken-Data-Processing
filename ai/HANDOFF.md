@@ -1,42 +1,50 @@
 # Handoff
 
-## Session: 2026-05-17T15:30:00-07:00
+## Session: 2026-05-17T17:00:00-07:00
 
 ### Project
 
 - Root: /Users/karl/Development/KTB/Quicken Data Processing
 - Branch: main
-- Last commit: 88e70b0 chore: replace narrow git permissions with blanket git allow rule
+- Last commit: (see git log — commit made end of this session)
 
 ### What was worked on
 
-Permission hygiene — no code changes:
+Fixed two income-handling bugs in `budget-prep`, found when running against the real CSV (`data/Income and Expenses 2026-01-01 - 2026-04-30.csv`):
 
-1. **Global `~/.claude/settings.json`** — collapsed 15 narrow per-verb git rules into `Bash(cd * && git *)` + `Bash(git *)`. Added `Bash(pwd && git *)` and perplexity MCP tools.
-2. **Project `.claude/settings.json`** — added `Bash(pwd && git *)`, `Bash(xargs '-I{}' sh -c ' *)`, `Bash(python3 -)`, and `additionalDirectories`.
-3. **`/fewer-permission-prompts`** — transcript scan confirmed no other high-frequency gaps remain.
+**Bug 1 — "Estimated Gross Pay" silently dropped.** `_is_income_category()` used keyword matching; any income category name that didn't match a keyword fell silently into expenses. Root fix: add a `section` column (`'income'`/`'expense'`) in the parser based on which CSV section a row came from, and use that in `budget.py` instead of keywords.
+
+**Bug 2 — No structural income/expense marker.** `include_inflows=True` returned a flat mixed DataFrame with no way to reliably distinguish income from expense rows. Fixed by stamping `section` onto each record in `_parse_data_rows` when `include_inflows=True`. Expense-only parsing is unchanged (no `section` column).
+
+**Anomaly detection added.** Any income row with a negative monthly value is collected into `payload["anomalies"]` as `type: "negative_income"` with category name and offending month(s). Targets the known case: "State Income Tax Refund" at −$6,690 in March.
 
 ### Status
 
-Main branch clean. `budget-prep` fully shipped and verified. Permission rules now cover all common session patterns.
+- 27/27 tests passing.
+- 5 files committed this session (see files touched below).
+- `budget-prep` ready to re-run against real CSV; not re-run yet this session.
 
 ### Next action
 
-Pick up from `TODO.md` backlog:
-
-1. Integration test with a real CSV export to exercise `quicken-report` CLI flags end-to-end
-2. Budget-prep downstream: Claude-side income classification + budget recommendation generation
+1. Re-run `budget-prep` against `data/Income and Expenses 2026-01-01 - 2026-04-30.csv` and confirm:
+   - "Estimated Gross Pay" appears in `income.recurring` or `income.irregular`
+   - "State Income Tax Refund" appears in `anomalies`
+2. Budget-prep downstream: Claude-side income classification + budget recommendation generation.
+3. Integration test for `quicken-report` CLI flags end-to-end.
 
 ### Files and areas touched
 
-- `.claude/settings.json` — permission additions
-- `~/.claude/settings.json` — global permission consolidation (not repo-tracked)
+- `src/quicken_parser/csv_parser.py` — stamp `section` on records when `include_inflows=True`
+- `src/quicken_parser/budget.py` — remove `_DEFAULT_INCOME_KEYWORDS`, `_is_income_category`, all `income_keywords` plumbing; section-based split; anomaly detection in payload
+- `budget_prep.yaml` — removed `income_keywords` block
+- `tests/test_budget.py` — added `section` column to fixture; dropped `income_keywords` arg; 3 new tests
+- `tests/test_csv_parser_inflows.py` — added section-column presence/value test
 - `ai/HANDOFF.md` — this file
 
 ### Verification
 
-- 24/24 tests passing (last verified 2026-05-17)
-- End-to-end `budget-prep` verified (2026-05-17)
+- 27/27 tests passing (2026-05-17)
+- End-to-end re-run with real CSV: not done this session — do first after resuming
 
 ### Open questions / blockers
 

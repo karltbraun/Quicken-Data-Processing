@@ -20,19 +20,7 @@ import yaml
 
 from quicken_parser.csv_parser import parse_quicken_csv
 
-_META_COLUMNS = {"category", "indent_level", "total", "monthly_average"}
-_DEFAULT_INCOME_KEYWORDS = [
-    "salary",
-    "income",
-    "paycheck",
-    "bonus",
-    "dividend",
-    "interest",
-    "refund",
-    "reimbursement",
-    "deposit",
-    "transfer in",
-]
+_META_COLUMNS = {"category", "indent_level", "section", "total", "monthly_average"}
 
 
 @dataclass
@@ -44,7 +32,6 @@ class BudgetRuntimeSettings:
     window_months: int = 3
     recurring_min_months: int = 3
     recurring_cv_threshold: float = 0.35
-    income_keywords: list[str] | None = None
 
 
 def create_budget_parser() -> argparse.ArgumentParser:
@@ -157,14 +144,6 @@ def merge_runtime_settings(args: argparse.Namespace, config: dict[str, Any]) -> 
         else float(config.get("recurring_cv_threshold", 0.35))
     )
 
-    income_keywords = config.get("income_keywords")
-    if income_keywords is None:
-        income_keywords = _DEFAULT_INCOME_KEYWORDS
-    elif not isinstance(income_keywords, list):
-        raise ValueError("income_keywords must be a list of strings")
-    else:
-        income_keywords = [str(item).strip().lower() for item in income_keywords if str(item).strip()]
-
     if window_months <= 0:
         raise ValueError("months must be greater than 0")
     if recurring_min_months <= 0:
@@ -178,7 +157,6 @@ def merge_runtime_settings(args: argparse.Namespace, config: dict[str, Any]) -> 
         window_months=window_months,
         recurring_min_months=recurring_min_months,
         recurring_cv_threshold=recurring_cv_threshold,
-        income_keywords=income_keywords,
     )
 
 
@@ -272,11 +250,6 @@ def _to_month_value_map(row: pd.Series, month_cols: list[str]) -> dict[str, floa
     return {col: round(_safe_float(row.get(col, 0.0)), 2) for col in month_cols}
 
 
-def _is_income_category(category_name: str, income_keywords: list[str]) -> bool:
-    lowered = category_name.lower()
-    return any(keyword in lowered for keyword in income_keywords)
-
-
 def _classify_income_entry(
     category: str,
     month_values: dict[str, float],
@@ -317,31 +290,37 @@ def build_budget_payload(
     month_cols: list[str],
     recurring_min_months: int,
     recurring_cv_threshold: float,
-    income_keywords: list[str],
 ) -> dict[str, Any]:
-    """Build the budget JSON payload from selected month columns."""
-    rows: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        category = str(row.get("category", "")).strip()
-        if not category:
-            continue
-        rows.append(
-            {
-                "category": category,
-                "monthly_values": _to_month_value_map(row, month_cols),
-            }
-        )
+    """Build the budget JSON payload from selected month columns.
+
+    Income vs expense is determined by the `section` column added by the parser
+    when include_inflows=True. Rows without a section column are treated as expenses.
+    """
+    has_section = "section" in df.columns
 
     recurring_income: list[dict[str, Any]] = []
     irregular_income: list[dict[str, Any]] = []
     expense_categories: list[dict[str, Any]] = []
+    anomalies: list[dict[str, Any]] = []
 
-    for row in rows:
-        category = row["category"]
-        month_values = row["monthly_values"]
-        avg = round(sum(month_values.values()) / len(month_values), 2)
+    for _, row in df.iterrows():
+        category = str(row.get("category", "")).strip()
+        if not category:
+            continue
 
-        if _is_income_category(category, income_keywords):
+        month_values = _to_month_value_map(row, month_cols)
+        is_income = has_section and row.get("section") == "income"
+
+        if is_income:
+            negative_months = {col: v for col, v in month_values.items() if v < 0}
+            if negative_months:
+                anomalies.append(
+                    {
+                        "type": "negative_income",
+                        "category": category,
+                        "negative_months": negative_months,
+                    }
+                )
             label, payload = _classify_income_entry(
                 category,
                 month_values,
@@ -353,6 +332,7 @@ def build_budget_payload(
             else:
                 irregular_income.append(payload)
         else:
+            avg = round(sum(month_values.values()) / len(month_values), 2)
             expense_categories.append(
                 {
                     "category": category,
@@ -395,6 +375,7 @@ def build_budget_payload(
             "monthly_totals": net_monthly_totals,
             "three_month_average": round(sum(net_monthly_totals.values()) / len(month_cols), 2),
         },
+        "anomalies": anomalies,
     }
 
     return payload
@@ -430,7 +411,6 @@ def run_budget_prep(
         month_cols=month_cols,
         recurring_min_months=settings.recurring_min_months,
         recurring_cv_threshold=settings.recurring_cv_threshold,
-        income_keywords=settings.income_keywords or _DEFAULT_INCOME_KEYWORDS,
     )
     write_budget_payload(payload, settings.output_file)
 
