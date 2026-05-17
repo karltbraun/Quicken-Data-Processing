@@ -57,19 +57,22 @@ class QuickenCSVParser:
         >>> print(df.head())
     """
 
-    def __init__(self, csv_path: str, verbose: bool = False):
+    def __init__(self, csv_path: str, verbose: bool = False, include_inflows: bool = False):
         """
         Initialize the CSV parser.
 
         Args:
             csv_path: Path to the Quicken expense CSV export
             verbose: Print detailed parsing information
+            include_inflows: Include Income/Inflows section rows in output.
+                Defaults to False for backward-compatible expense-only parsing.
 
         Raises:
             FileNotFoundError: If CSV file doesn't exist
         """
         self.csv_path = csv_path
         self.verbose = verbose
+        self.include_inflows = include_inflows
         self._validate_csv()
 
     def _validate_csv(self) -> None:
@@ -259,12 +262,12 @@ class QuickenCSVParser:
                 in_outflows = True
                 continue
 
-            # Skip Inflows/Income section
-            if in_inflows:
+            # Process rows only when we're in a supported section.
+            # Default behavior remains expense-only unless include_inflows=True.
+            if in_inflows and not self.include_inflows:
                 continue
 
-            # Only process Outflows/Expenses
-            if not in_outflows:
+            if not in_inflows and not in_outflows:
                 continue
 
             # Parse category and indentation level
@@ -384,13 +387,19 @@ class QuickenCSVParser:
             return None
 
 
-def parse_quicken_csv(csv_path: str, verbose: bool = False) -> pd.DataFrame:
+def parse_quicken_csv(
+    csv_path: str,
+    verbose: bool = False,
+    include_inflows: bool = False,
+) -> pd.DataFrame:
     """
     Convenience function to parse a Quicken expense CSV.
 
     Args:
         csv_path: Path to the Quicken CSV export
         verbose: Enable detailed logging
+        include_inflows: Include Income/Inflows section rows in output.
+            Defaults to False for backward-compatible expense-only parsing.
 
     Returns:
         pd.DataFrame: Parsed expense data
@@ -399,7 +408,11 @@ def parse_quicken_csv(csv_path: str, verbose: bool = False) -> pd.DataFrame:
         >>> df = parse_quicken_csv('./data/Expenses-2025-01-2025-11.csv')
         >>> print(df.head())
     """
-    parser = QuickenCSVParser(csv_path, verbose=verbose)
+    parser = QuickenCSVParser(
+        csv_path,
+        verbose=verbose,
+        include_inflows=include_inflows,
+    )
     return parser.parse()
 
 
