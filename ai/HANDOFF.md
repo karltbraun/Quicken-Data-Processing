@@ -1,24 +1,24 @@
 # Handoff
 
-## Session: 2026-05-17T14:00:00-07:00
+## Session: 2026-05-17T15:30:00-07:00
 
 ### Project
 
 - Root: /Users/karl/Development/KTB/Quicken Data Processing
 - Branch: main
-- Last commit: 284a1bd feat: merge project/parser-inflows-init — budget-prep CLI with opt-in inflows parsing
+- Last commit: 88e70b0 chore: replace narrow git permissions with blanket git allow rule
 
 ### What was worked on
 
-Completed branch `project/parser-inflows-init` and merged to main:
+Permission hygiene — no code changes:
 
-1. **End-to-end verification** — ran `budget-prep --config budget_prep.yaml --input 'data/Income and Expenses 2026-01-01 - 2026-04-30.csv'`; confirmed `reports/budget/budget_prep.json` has non-empty income totals (1 recurring, 4 irregular items).
-2. **Final commits** — settings.json permissions, TODO.md all tasks marked complete.
-3. **Merged** — no-ff merge of branch into main.
+1. **Global `~/.claude/settings.json`** — collapsed 15 narrow per-verb git rules into `Bash(cd * && git *)` + `Bash(git *)`. Added `Bash(pwd && git *)` and perplexity MCP tools.
+2. **Project `.claude/settings.json`** — added `Bash(pwd && git *)`, `Bash(xargs '-I{}' sh -c ' *)`, `Bash(python3 -)`, and `additionalDirectories`.
+3. **`/fewer-permission-prompts`** — transcript scan confirmed no other high-frequency gaps remain.
 
 ### Status
 
-Branch complete. All acceptance criteria met. Working tree clean on main.
+Main branch clean. `budget-prep` fully shipped and verified. Permission rules now cover all common session patterns.
 
 ### Next action
 
@@ -29,15 +29,14 @@ Pick up from `TODO.md` backlog:
 
 ### Files and areas touched
 
-- `reports/budget/budget_prep.json` — generated output (git-ignored)
-- `.claude/settings.json` — python3 -c, git checkout, git merge permissions added
-- `TODO.md` — all tasks marked complete
+- `.claude/settings.json` — permission additions
+- `~/.claude/settings.json` — global permission consolidation (not repo-tracked)
 - `ai/HANDOFF.md` — this file
 
 ### Verification
 
-- 24/24 tests passing
-- End-to-end `budget-prep` run confirmed non-empty income totals
+- 24/24 tests passing (last verified 2026-05-17)
+- End-to-end `budget-prep` verified (2026-05-17)
 
 ### Open questions / blockers
 
@@ -46,4 +45,3 @@ None
 ### Flags for /resume-work
 
 - `aa*` files are gitignored scratch — do not commit them
-- No upstream is configured for main; push manually with `git push -u origin main` if needed

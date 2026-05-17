@@ -6,7 +6,13 @@
       "Bash(PYTHONPATH=src uv run pytest -o \"addopts=\")",
       "Bash(python3 -c ' *)",
       "Bash(cd * && git *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(pwd && git *)",
+      "Bash(xargs '-I{}' sh -c ' *)",
+      "Bash(python3 -)"
+    ],
+    "additionalDirectories": [
+      "/Users/karl/.claude"
     ]
   }
 }
