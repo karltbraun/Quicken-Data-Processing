@@ -1,53 +1,49 @@
 # Handoff
 
-## Session: 2026-05-17T00:00:00-07:00
+## Session: 2026-05-17T14:00:00-07:00
 
 ### Project
+
 - Root: /Users/karl/Development/KTB/Quicken Data Processing
-- Branch: project/parser-inflows-init
-- Last commit: 4b688e5 chore: add CLAUDE.md and update handoff
+- Branch: main
+- Last commit: 284a1bd feat: merge project/parser-inflows-init — budget-prep CLI with opt-in inflows parsing
 
 ### What was worked on
-Two things this session:
-1. **Branch initialization** — read `aaHandoff.md` and `aaBranchProject.md`, confirmed we are on the correct branch, rebuilt a broken venv (stale shebang from old path `Ackbook2/...`), ran all tests (24/24 pass).
-2. **Context document overhaul** — replaced stub/temp docs with properly tracked equivalents:
-   - `TODO.md` — converted from empty stub to active branch checklist with acceptance criteria and remaining tasks
-   - `Instructions/ai_instructions.md` — filled in all TBDs (goal, directory map, key files, expectations, conventions)
-   - `CLAUDE.md` — added `budget-prep` module section (pipeline, config, income classification, guardrail) and a context-tracking footer
-   - Established convention: `aa*` files = gitignored temp scratch; `TODO.md` / `CLAUDE.md` / `Instructions/ai_instructions.md` = tracked durable context
+
+Completed branch `project/parser-inflows-init` and merged to main:
+
+1. **End-to-end verification** — ran `budget-prep --config budget_prep.yaml --input 'data/Income and Expenses 2026-01-01 - 2026-04-30.csv'`; confirmed `reports/budget/budget_prep.json` has non-empty income totals (1 recurring, 4 irregular items).
+2. **Final commits** — settings.json permissions, TODO.md all tasks marked complete.
+3. **Merged** — no-ff merge of branch into main.
 
 ### Status
-- All implementation on this branch is uncommitted (see files below)
-- Tests: 24/24 passing
-- The one remaining unverified acceptance criterion: end-to-end `budget-prep` run producing non-empty income totals in JSON output
+
+Branch complete. All acceptance criteria met. Working tree clean on main.
 
 ### Next action
-1. Run end-to-end: `uv run budget-prep --config budget_prep.yaml --input 'data/Income and Expenses 2026-01-01 - 2026-04-30.csv'`
-2. Verify `reports/budget/budget_prep.json` has non-zero income monthly totals
-3. Update README if income classification section needs tweaking
-4. Commit in three groups per `TODO.md`
+
+Pick up from `TODO.md` backlog:
+
+1. Integration test with a real CSV export to exercise `quicken-report` CLI flags end-to-end
+2. Budget-prep downstream: Claude-side income classification + budget recommendation generation
 
 ### Files and areas touched
-- `src/quicken_parser/csv_parser.py` — `include_inflows` flag added to `QuickenCSVParser` and `parse_quicken_csv`
-- `src/quicken_parser/budget.py` — new: `budget-prep` CLI and transformation logic
-- `budget_prep.yaml` — new: example budget-prep config
-- `pyproject.toml` — registered `budget-prep` console script
-- `tests/test_csv_parser_inflows.py` — new: parser inflows opt-in tests
-- `tests/test_budget.py` — new: budget-prep pipeline tests
-- `README.md` — added budget-prep CLI usage docs
-- `CLAUDE.md` — added budget-prep module section and context-tracking footer
-- `Instructions/ai_instructions.md` — filled in all TBDs
-- `TODO.md` — converted from stub to active checklist
-- `.claude/settings.json` — project-level Claude Code permissions
+
+- `reports/budget/budget_prep.json` — generated output (git-ignored)
+- `.claude/settings.json` — python3 -c, git checkout, git merge permissions added
+- `TODO.md` — all tasks marked complete
+- `ai/HANDOFF.md` — this file
 
 ### Verification
-- `PYTHONPATH=src uv run pytest -o "addopts=" tests/test_csv_parser_inflows.py tests/test_budget.py tests/test_cli_flags.py -v` → 22/22 pass
-- `PYTHONPATH=src uv run pytest -o "addopts="` → 24/24 pass
-- End-to-end `budget-prep` run: **not yet run this session**
+
+- 24/24 tests passing
+- End-to-end `budget-prep` run confirmed non-empty income totals
 
 ### Open questions / blockers
-- None
+
+None
 
 ### Flags for /resume-work
-- `aa*` files (`aaHandoff.md`, `aaBranchProject.md`, `aaBudgetPlan.md`) are gitignored temp scratch — do not commit them; content has been migrated to tracked docs
-- Venv was rebuilt with `uv venv --seed --clear` — if venv issues recur, this is the fix
+
+- `aa*` files are gitignored scratch — do not commit them
+- No upstream is configured for main; push manually with `git push -u origin main` if needed
