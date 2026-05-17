@@ -44,6 +44,7 @@ dependencies = [
 
 [project.scripts]
 quicken-report = "quicken_parser.main:cli"
+budget-prep = "quicken_parser.budget:budget_cli"
 
 [project.optional-dependencies]
 dev = [

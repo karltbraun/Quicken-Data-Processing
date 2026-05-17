@@ -74,6 +74,40 @@ main.py              — generate_charts() and generate_tables() write outputs
 
 Quicken CSV quirks handled by the parser:
 - Non-standard header (title + date range in first two lines before the `Category` header row)
-- Income/Inflows section is skipped; parsing stops at the `Other` top-level category
+- Income/Inflows section is skipped by default; parsing stops at the `Other` top-level category
 - Hierarchical categories encoded as leading ` - ` sequences; `indent_level` counts the dashes
 - Currency strings like `-1,234.56` converted to float
+
+## budget-prep module
+
+`budget-prep` is a separate CLI (`budget.py`) that produces structured JSON for downstream budgeting workflows.
+
+**Pipeline:** CSV → parse (with inflows) → select window → classify → JSON
+
+```text
+budget-prep (CLI in budget.py)
+    ↓
+load_budget_dataframe()             — raw Quicken export: parse_quicken_csv(include_inflows=True)
+                                       pre-parsed CSV (Expense_Report / parsed_expenses suffix): pd.read_csv
+    ↓
+select_last_complete_month_columns() — N most recent complete months (default 3)
+                                        "complete" = earlier than current calendar month
+    ↓
+build_budget_payload()              — rows matched against income_keywords → income or expense
+                                       income split into recurring vs irregular by CV threshold
+    ↓
+write_budget_payload()              — writes JSON to output_file
+```
+
+**Config:** `budget_prep.yaml`. Key settings: `input_csv`, `output_file`, `months` (default 3), `recurring_cv_threshold` (default 0.35), `income_keywords` (list of substring keywords).
+
+**Income classification:** category name matched against `income_keywords` (case-insensitive substring). Recurring = nonzero in ≥ `recurring_min_months` AND CV ≤ `recurring_cv_threshold`.
+
+**Guardrail:** `include_inflows=True` is only set inside `load_budget_dataframe()` in the raw CSV path. The `quicken-report` pipeline never touches this flag — expense-only behavior is preserved.
+
+## Context and task tracking
+
+- **`TODO.md`** — active task checklist; update as work progresses
+- **`CLAUDE.md`** (this file) — architecture reference and AI guidance
+- **`Instructions/ai_instructions.md`** — project goals, directory map, conventions
+- Temporary scratch files (handoffs, branch plans) use the `aa` prefix and are gitignored

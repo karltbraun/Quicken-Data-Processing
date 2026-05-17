@@ -31,7 +31,9 @@ This project automates the extraction of expense data from Quicken CSV exports a
   - Error handling modes (fill_zero, skip, error)
     - if a requested category is missing from the data due to no values in any month, the category is reported on as all zeros in time range.
 - 🚫 **Automatic filtering** of inflows and summary rows
-- 🖥️ **CLI Tool**: `quicken-report` command for easy report generation
+- 🖥️ **CLI Tools**
+  - `quicken-report` for chart/table report generation
+  - `budget-prep` for budget JSON preparation
 
 ## Project Status
 
@@ -138,6 +140,41 @@ This will:
 - Create report groups defined in `reports_config.yaml`
 - Generate line charts in `./reports/charts/`
 - Generate timestamped CSV tables in `./reports/`
+
+### Budget Prep Command
+
+Use `budget-prep` to generate structured JSON for downstream budgeting.
+
+```bash
+budget-prep --input data/Expenses-2025.csv --output-file reports/budget/budget_prep.json
+```
+
+You can also provide a dedicated config file for standard runs, then override
+individual settings for ad-hoc/testing runs:
+
+```bash
+budget-prep --config budget_prep.yaml -o reports/budget/test_budget.json
+```
+
+Example `budget_prep.yaml`:
+
+```yaml
+budget_prep:
+  input_csv: data/Expenses-2025.csv
+  output_file: reports/budget/budget_prep.json
+  months: 3
+  recurring_min_months: 3
+  recurring_cv_threshold: 0.35
+```
+
+Supported CLI overrides for `budget-prep` include:
+
+- `-i, --input`
+- `-o, --output-file`
+- `-c, --config`
+- `--months`
+- `--recurring-min-months`
+- `--recurring-cv-threshold`
 
 ### Configuration File
 
