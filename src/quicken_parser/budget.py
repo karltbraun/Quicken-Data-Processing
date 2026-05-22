@@ -332,11 +332,12 @@ def build_budget_payload(
             else:
                 irregular_income.append(payload)
         else:
-            avg = round(sum(month_values.values()) / len(month_values), 2)
+            normalized = {col: round(abs(v), 2) for col, v in month_values.items()}
+            avg = round(sum(normalized.values()) / len(normalized), 2)
             expense_categories.append(
                 {
                     "category": category,
-                    "monthly_values": month_values,
+                    "monthly_values": normalized,
                     "three_month_average": avg,
                 }
             )
