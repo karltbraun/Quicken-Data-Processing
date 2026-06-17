@@ -38,7 +38,7 @@ dependencies = [
     "seaborn>=0.13.0",         # Statistical data visualization
     "pyyaml>=6.0.0",           # YAML configuration file parsing
     "pydantic>=2.0.0",         # Data validation and settings management
-    "python-dotenv>=1.0.0",    # Load environment variables from .env
+    "python-dotenv>=1.2.2",    # Load environment variables from .env
     "openpyxl>=3.1.0",         # Excel file generation
 ]
 
@@ -48,9 +48,9 @@ budget-prep = "quicken_parser.budget:budget_cli"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",           # Unit testing framework
+    "pytest>=9.0.3",           # Unit testing framework
     "pytest-cov>=4.0.0",       # Coverage reporting for pytest
-    "black>=23.0.0",           # Code formatting (opinionated)
+    "black>=26.3.1",           # Code formatting (opinionated)
     "ruff>=0.1.0",             # Fast Python linter
     "mypy>=1.0.0",             # Static type checking
     "isort>=5.12.0",           # Import sorting
